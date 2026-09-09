@@ -1,0 +1,144 @@
+import AppKit
+
+/// Large preview shown when the mouse enters the small preview.
+final class FullPreviewPanel: NSPanel {
+    static let maxCards = 5
+    static let maxPanelWidth: CGFloat = 3200
+    static let maxImageHeight: CGFloat = 1200
+    static let padding: CGFloat = 16
+    static let spacing: CGFloat = 12
+
+    var onEntered: (() -> Void)?
+    var onExited: (() -> Void)?
+    var onCardClick: ((CGWindowID) -> Void)?
+
+    private let root = HoverTrackingView(frame: .zero)
+    private let headerLabel = NSTextField(labelWithString: "")
+    private let cardsStack = NSStackView()
+    private var cards: [CGWindowID: WindowCardView] = [:]
+    private var effect: NSVisualEffectView!
+    private var layoutSize = NSSize(width: 1020, height: 750)
+
+    static func usesExpandedLayout(windowBounds: CGRect, screenSize: NSSize) -> Bool {
+        guard windowBounds.width > 0, windowBounds.height > 0,
+              screenSize.width > 0, screenSize.height > 0 else { return false }
+        let widthRatio = windowBounds.width / screenSize.width
+        let areaRatio = (windowBounds.width * windowBounds.height)
+            / (screenSize.width * screenSize.height)
+        let isLandscape = windowBounds.width / windowBounds.height >= 1.1
+        return isLandscape && (widthRatio >= 0.72 || areaRatio >= 0.55)
+    }
+
+    init(onEntered: (() -> Void)?, onExited: (() -> Void)?) {
+        self.onEntered = onEntered
+        self.onExited = onExited
+        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        level = .statusBar
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        ignoresMouseEvents = false
+        buildContent()
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private func buildContent() {
+        root.onEntered = { [weak self] in self?.onEntered?() }
+        root.onExited = { [weak self] in self?.onExited?() }
+
+        effect = NSVisualEffectView(frame: .zero)
+        effect.material = .hudWindow
+        effect.blendingMode = .behindWindow
+        effect.state = .active
+        effect.wantsLayer = true
+        effect.layer?.cornerRadius = 16
+        effect.layer?.masksToBounds = true
+        effect.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(effect)
+
+        headerLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        headerLabel.textColor = .labelColor
+        headerLabel.alignment = .center
+        headerLabel.lineBreakMode = .byTruncatingTail
+        headerLabel.maximumNumberOfLines = 1
+        headerLabel.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(headerLabel)
+
+        cardsStack.orientation = .horizontal
+        cardsStack.spacing = Self.spacing
+        cardsStack.alignment = .top
+        cardsStack.distribution = .fill
+        cardsStack.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(cardsStack)
+
+        NSLayoutConstraint.activate([
+            effect.topAnchor.constraint(equalTo: root.topAnchor),
+            effect.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            effect.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            effect.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            headerLabel.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
+            headerLabel.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: Self.padding),
+            headerLabel.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -Self.padding),
+            headerLabel.heightAnchor.constraint(equalToConstant: 20),
+            cardsStack.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 6),
+            cardsStack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: Self.padding),
+            cardsStack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -Self.padding),
+            cardsStack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -Self.padding),
+        ])
+        contentView = root
+    }
+
+    func setWindows(_ windows: [WindowInfo], images: [CGWindowID: CGImage], appName: String,
+                    appIcon: NSImage? = nil) {
+        headerLabel.stringValue = appName + " · \(windows.count) 个窗口"
+        for v in cardsStack.arrangedSubviews {
+            cardsStack.removeArrangedSubview(v)
+            v.removeFromSuperview()
+        }
+        cards.removeAll()
+        let visible = Array(windows.prefix(Self.maxCards))
+        let count = max(visible.count, 1)
+        let screenWidth = NSScreen.main?.frame.width ?? 1440
+        let screenHeight = NSScreen.main?.frame.height ?? 900
+        let availableWidth = min(Self.maxPanelWidth, screenWidth - 30)
+        let maxImageHeight = min(Self.maxImageHeight, screenHeight - 100)
+        let availableCardWidth = (
+            availableWidth - Self.padding * 2 - CGFloat(count - 1) * Self.spacing
+        ) / CGFloat(count)
+        let shouldExpand = visible.count == 1 && visible.first.map {
+            Self.usesExpandedLayout(
+                windowBounds: $0.bounds,
+                screenSize: NSSize(width: screenWidth, height: screenHeight)
+            )
+        } == true
+        let maximumCardWidth: CGFloat = shouldExpand ? 2000 : 1450
+        let cardWidth = min(maximumCardWidth, availableCardWidth)
+        var totalWidth = Self.padding * 2 + CGFloat(max(visible.count - 1, 0)) * Self.spacing
+        var maxHeight: CGFloat = 0
+        for w in visible {
+            let fitted = WindowCardView.fittedSize(for: w,
+                                                   maxSize: NSSize(width: cardWidth, height: maxImageHeight))
+            let card = WindowCardView(window: w, cardSize: fitted.card, thumbHeight: fitted.image.height,
+                                      showsCloseButton: false,
+                                      fallbackImage: appIcon)
+            card.onClick = { [weak self] id in self?.onCardClick?(id) }
+            card.setImage(images[w.id])
+            cards[w.id] = card
+            cardsStack.addArrangedSubview(card)
+            totalWidth += fitted.card.width
+            maxHeight = max(maxHeight, fitted.card.height)
+        }
+        layoutSize = NSSize(width: visible.isEmpty ? 1020 : totalWidth,
+                            height: visible.isEmpty ? 750 : 20 + 6 + maxHeight + Self.padding * 2 + 8)
+    }
+
+    func updateImage(_ image: CGImage?, for windowID: CGWindowID) {
+        cards[windowID]?.setImage(image)
+    }
+
+    func desiredSize() -> NSSize {
+        layoutSize
+    }
+}
