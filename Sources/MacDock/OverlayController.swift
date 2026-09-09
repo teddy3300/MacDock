@@ -61,7 +61,12 @@ final class OverlayController: NSObject {
     }
 
     func previewNativeIcon(_ slot: NativeDockGeometry.IconSlot) {
+        guard !AppSettings.shared.isPaused else { return }
         guard slot.isRunning, let bid = slot.bundleID else { return }
+        guard !AppSettings.shared.isExcluded(bundleID: bid) else {
+            previewController.closeAll()
+            return
+        }
         let item = DockItem.app(bundleID: bid, name: slot.name)
         let names = state.ownerNameCandidates(bundleID: bid)
         previewController.itemEntered(item: item, ownerNames: names, anchorScreenRect: slot.rect)

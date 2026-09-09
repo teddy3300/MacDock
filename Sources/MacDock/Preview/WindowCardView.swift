@@ -48,6 +48,7 @@ final class WindowCardView: NSView {
          titleInHeader: Bool = false,
          displayTitle: String? = nil,
          showsCloseButton: Bool = true,
+         showsTitle: Bool = true,
          allowsRefresh: Bool = false,
          fallbackImage: NSImage? = nil) {
         self.windowID = window.id
@@ -80,6 +81,7 @@ final class WindowCardView: NSView {
         titleLabel.alignment = titleInHeader ? .left : .center
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
+        titleLabel.isHidden = !showsTitle
         addSubview(titleLabel)
 
         statusLabel.font = .systemFont(ofSize: 14, weight: .medium)
@@ -151,13 +153,20 @@ final class WindowCardView: NSView {
             // First-layer cards use a compact title bar above the thumbnail:
             // the close affordance and title share one stable horizontal row.
             imageView.frame = NSRect(x: 0, y: 0, width: cardSize.width, height: thumbHeight)
-            titleLabel.frame = NSRect(x: closeSize + 12,
-                                      y: thumbHeight,
-                                      width: max(0, cardSize.width - closeSize - 16),
-                                      height: max(12, footerHeight))
-            closeButton.frame = NSRect(x: 5,
-                                       y: thumbHeight + (footerHeight - closeSize) / 2,
-                                       width: closeSize, height: closeSize)
+            if footerHeight > 0 {
+                titleLabel.frame = NSRect(x: closeSize + 12,
+                                          y: thumbHeight,
+                                          width: max(0, cardSize.width - closeSize - 16),
+                                          height: max(12, footerHeight))
+                closeButton.frame = NSRect(x: 5,
+                                           y: thumbHeight + (footerHeight - closeSize) / 2,
+                                           width: closeSize, height: closeSize)
+            } else {
+                titleLabel.frame = .zero
+                closeButton.frame = NSRect(x: 6,
+                                           y: max(0, thumbHeight - closeSize - 6),
+                                           width: closeSize, height: closeSize)
+            }
             refreshButton.frame = NSRect(x: cardSize.width - 26, y: 6, width: 20, height: 20)
             statusLabel.frame = NSRect(x: 8, y: thumbHeight / 2 - 12,
                                        width: cardSize.width - 16, height: 24)
@@ -186,7 +195,14 @@ final class WindowCardView: NSView {
 
     override func otherMouseDown(with event: NSEvent) {
         if event.buttonNumber == 2 {
-            onClose?(windowID)
+            switch AppSettings.shared.middleClickAction {
+            case .closeWindow:
+                onClose?(windowID)
+            case .activateWindow:
+                onClick?(windowID)
+            case .none:
+                break
+            }
         } else {
             super.otherMouseDown(with: event)
         }

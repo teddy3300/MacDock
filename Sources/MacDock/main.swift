@@ -142,8 +142,18 @@ if args.contains("--selftest") {
     exit(0)
 }
 
+if args.contains("--version") || args.contains("-v") {
+    print("MacDock 1.0.0")
+    exit(0)
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
 app.setActivationPolicy(.accessory)
+if args.contains("--settings") || args.contains("-p") {
+    DispatchQueue.main.async {
+        SettingsWindowController.shared.show()
+    }
+}
 app.run()

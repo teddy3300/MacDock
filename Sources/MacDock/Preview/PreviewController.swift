@@ -43,6 +43,10 @@ final class PreviewController {
         return smallPanel?.frame
     }
 
+    var isShowing: Bool {
+        smallPanel?.isVisible == true
+    }
+
     var fullPanelFrame: NSRect? {
         guard fullPanel?.isVisible == true else { return nil }
         return fullPanel?.frame
@@ -172,6 +176,19 @@ final class PreviewController {
               let selectedWindow = windows.first(where: { $0.id == id }) else { return }
         overSmall = true
         cancelClose()
+
+        guard AppSettings.shared.enableFullPreview else {
+            selectedWindowID = nil
+            fullPanel?.orderOut(nil)
+            return
+        }
+        if AppSettings.shared.requireOptionForFullPreview {
+            guard NSEvent.modifierFlags.contains(.option) else {
+                selectedWindowID = nil
+                fullPanel?.orderOut(nil)
+                return
+            }
+        }
 
         let frontmostApplication = NSWorkspace.shared.frontmostApplication
         let isCurrentAppFrontmost = frontmostApplication?.bundleIdentifier == currentBundleID
@@ -465,18 +482,22 @@ final class PreviewController {
     }
 
     private func previewWindows() -> [WindowInfo] {
-        let candidates: [WindowInfo]
+        var candidates: [WindowInfo]
         if let pid = currentPID {
             candidates = WindowEnumerator.previewWindows(forOwnerPID: pid, ownerName: currentAppName)
         } else {
             candidates = WindowEnumerator.normalWindows(forOwnerNames: currentOwnerNames)
                 .filter { !$0.title.lowercased().contains("translate") }
         }
+        if !AppSettings.shared.includeMinimizedWindows {
+            candidates = candidates.filter { $0.isOnScreen }
+        }
         return Array(candidates.prefix(SmallPreviewPanel.maxCards))
     }
 
     private func displayTitle(for window: WindowInfo) -> String {
         let fallback = window.title.isEmpty ? currentAppName : window.title
+        guard AppSettings.shared.showChromeProfile else { return fallback }
         guard currentAppName == "Google Chrome" else { return fallback }
         if let cached = chromeProfileNames[window.id] { return cached }
         guard let profile = WindowActions.chromeProfileName(for: window) else { return fallback }
@@ -545,7 +566,7 @@ final class PreviewController {
         guard let bid = currentBundleID,
               let win = windows.first(where: { $0.id == id }),
               closingWindowIDs.insert(id).inserted else { return }
-        let quitsApplication = windows.count == 1
+        let quitsApplication = AppSettings.shared.closeLastWindowQuitsApp && (windows.count == 1)
         let closed = quitsApplication
             ? WindowActions.quitApplication(bundleID: bid)
             : WindowActions.closeWindow(bundleID: bid, window: win)
@@ -593,7 +614,8 @@ final class PreviewController {
 
     private func armClose() {
         closeTimer?.invalidate()
-        closeTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
+        let delay = AppSettings.shared.dismissDelay
+        closeTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             guard let self else { return }
             if !self.overItem && !self.overSmall && !self.overFull {
                 self.closeAll()

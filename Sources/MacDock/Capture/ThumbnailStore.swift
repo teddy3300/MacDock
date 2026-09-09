@@ -183,6 +183,29 @@ final class ThumbnailStore {
             properties: [.compressionFactor: 0.72]
         )
     }
+
+    func cacheInfo(completion: @escaping (Int, Int) -> Void) {
+        queue.async { [weak self] in
+            guard let self else { completion(0, 0); return }
+            let count = self.entries.count
+            let bytes = self.entries.reduce(0) { $0 + $1.byteCount }
+            DispatchQueue.main.async { completion(count, bytes) }
+        }
+    }
+
+    func clearAll(completion: @escaping () -> Void) {
+        queue.async { [weak self] in
+            guard let self else { completion(); return }
+            for entry in self.entries {
+                try? FileManager.default.removeItem(
+                    at: self.directory.appendingPathComponent(entry.filename)
+                )
+            }
+            self.entries.removeAll()
+            try? FileManager.default.removeItem(at: self.indexURL)
+            DispatchQueue.main.async { completion() }
+        }
+    }
 }
 
 /// Captures a small set of visible windows when application focus changes.

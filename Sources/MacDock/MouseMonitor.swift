@@ -12,6 +12,8 @@ final class MouseMonitor {
     private var overDock = false
     private var rightButtonDown = false
     private var rightClickSuppressedKey: String?
+    private var hoverTimer: Timer?
+    private var pendingSlot: NativeDockGeometry.IconSlot?
 
     func start() {
         stop()
@@ -38,6 +40,7 @@ final class MouseMonitor {
     }
 
     func stop() {
+        cancelHoverTimer()
         timer?.invalidate()
         timer = nil
         if let globalLeftMouseMonitor {
@@ -60,9 +63,25 @@ final class MouseMonitor {
         rightClickSuppressedKey = nil
     }
 
+    private func cancelHoverTimer() {
+        hoverTimer?.invalidate()
+        hoverTimer = nil
+        pendingSlot = nil
+    }
+
     private func tick() {
         guard let controller else { return }
         let mouse = NSEvent.mouseLocation  // bottom-left origin, AppKit space
+
+        if AppSettings.shared.isPaused {
+            cancelHoverTimer()
+            if overDock || lastKey != nil {
+                overDock = false
+                lastKey = nil
+                controller.previewController.closeAll()
+            }
+            return
+        }
 
         // A right-click belongs to the Dock's context-menu interaction. Do
         // not let our hover feature compete with it: close any open preview,
@@ -74,6 +93,7 @@ final class MouseMonitor {
             if !rightButtonDown {
                 rightButtonDown = true
                 rightClickSuppressedKey = hoveredKey
+                cancelHoverTimer()
                 lastKey = nil
                 overDock = false
                 controller.previewController.closeAll()
@@ -90,7 +110,8 @@ final class MouseMonitor {
         if controller.isOverOurPanels(at: mouse) { return }
 
         guard let geo = controller.currentGeometry else {
-            if overDock {
+            if overDock || lastKey != nil || pendingSlot != nil {
+                cancelHoverTimer()
                 overDock = false
                 lastKey = nil
                 controller.previewController.itemExited()
@@ -116,10 +137,25 @@ final class MouseMonitor {
         if let slot = geo.iconSlot(at: mouse) {
             if lastKey != slot.key {
                 lastKey = slot.key
-                overDock = true
-                if slot.isRunning {
-                    controller.previewNativeIcon(slot)
+                cancelHoverTimer()
+                let isExcluded = slot.bundleID.map { AppSettings.shared.isExcluded(bundleID: $0) } ?? false
+                if slot.isRunning && !isExcluded {
+                    let isAlreadyShowing = controller.previewController.isShowing
+                    let delay = isAlreadyShowing ? 0.04 : AppSettings.shared.hoverDelay
+                    if delay <= 0.02 {
+                        overDock = true
+                        controller.previewNativeIcon(slot)
+                    } else {
+                        pendingSlot = slot
+                        hoverTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+                            guard let self, let pending = self.pendingSlot, self.lastKey == pending.key else { return }
+                            self.overDock = true
+                            self.controller?.previewNativeIcon(pending)
+                            self.cancelHoverTimer()
+                        }
+                    }
                 } else {
+                    overDock = false
                     controller.previewController.closeAll()
                 }
             } else if overDock {
@@ -129,7 +165,8 @@ final class MouseMonitor {
                 controller.previewController.returnedToDockIcon()
             }
         } else {
-            if overDock || lastKey != nil {
+            if overDock || lastKey != nil || pendingSlot != nil {
+                cancelHoverTimer()
                 overDock = false
                 lastKey = nil
                 controller.previewController.itemExited()
@@ -153,8 +190,16 @@ final class MouseMonitor {
     private func handleMiddleMouseDown(at point: NSPoint) {
         let perform = { [weak self] in
             guard let controller = self?.controller else { return }
-            let handled = controller.previewController.performFirstLayerMiddleClick(at: point)
-            if handled { Logger.log("first-layer middle click handled at \(point)") }
+            switch AppSettings.shared.middleClickAction {
+            case .closeWindow:
+                let handled = controller.previewController.performFirstLayerMiddleClick(at: point)
+                if handled { Logger.log("first-layer middle click handled (close) at \(point)") }
+            case .activateWindow:
+                let handled = controller.previewController.performFirstLayerAction(at: point)
+                if handled { Logger.log("first-layer middle click handled (activate) at \(point)") }
+            case .none:
+                break
+            }
         }
         if Thread.isMainThread {
             perform()

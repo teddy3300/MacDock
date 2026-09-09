@@ -105,15 +105,21 @@ final class SmallPreviewPanel: NSPanel {
         )
         var totalWidth = Self.padding * 2 + CGFloat(max(visible.count - 1, 0)) * Self.spacing
         var maxHeight: CGFloat = 0
+        let showTitle = AppSettings.shared.showWindowTitle
+        let showClose = AppSettings.shared.showCloseButton
+        let thumbHeight = AppSettings.shared.cardHeight
+        let footerHeight: CGFloat = showTitle ? 22 : 0
         for w in visible {
             let fitted = WindowCardView.fittedSize(for: w,
-                                                   maxSize: NSSize(width: cardWidth, height: Self.maxImageHeight),
-                                                   footerHeight: 22)
+                                                   maxSize: NSSize(width: cardWidth, height: thumbHeight),
+                                                   footerHeight: footerHeight)
             let title = titleForWindow?(w) ?? (w.title.isEmpty ? appName : w.title)
             let card = WindowCardView(window: w, cardSize: fitted.card, thumbHeight: fitted.image.height,
-                                      closeSize: 16, footerHeight: 22, titleFontSize: 9,
+                                      closeSize: 16, footerHeight: footerHeight, titleFontSize: 9,
                                       titleInHeader: true,
                                       displayTitle: title,
+                                      showsCloseButton: showClose,
+                                      showsTitle: showTitle,
                                       allowsRefresh: !w.isOnScreen,
                                       fallbackImage: appIcon)
             card.onEntered = { [weak self] id in self?.onCardEntered?(id) }

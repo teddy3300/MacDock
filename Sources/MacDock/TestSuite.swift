@@ -179,6 +179,34 @@ enum TestSuite {
             "movement outside preview corridor is released"
         )
 
+        // AppSettings tests
+        do {
+            let suiteName = "com.local.macdock.test.\(UUID().uuidString)"
+            let testDefaults = UserDefaults(suiteName: suiteName)!
+            let settings = AppSettings(userDefaults: testDefaults)
+            check(!settings.closeLastWindowQuitsApp, "default closeLastWindowQuitsApp is false")
+            check(settings.showMenuBarIcon, "default showMenuBarIcon is true")
+            check(settings.enableFullPreview, "default enableFullPreview is true")
+            check(settings.hoverDelay > 0.05, "default hoverDelay is positive")
+            check(settings.middleClickAction == .closeWindow, "default middleClickAction is close")
+
+            // Exclusion test
+            check(!settings.isExcluded(bundleID: "com.test.app"), "app not excluded initially")
+            settings.exclude(bundleID: "com.test.app")
+            check(settings.isExcluded(bundleID: "com.test.app"), "app excluded after call")
+            settings.unexclude(bundleID: "com.test.app")
+            check(!settings.isExcluded(bundleID: "com.test.app"), "app unexcluded after call")
+
+            // Reset test
+            settings.hoverDelay = 0.75
+            settings.showWindowTitle = false
+            settings.resetToDefaults()
+            check(settings.hoverDelay == 0.20, "reset restores hoverDelay")
+            check(settings.showWindowTitle == true, "reset restores showWindowTitle")
+
+            testDefaults.removePersistentDomain(forName: suiteName)
+        }
+
         // Screen recording permission state (informational)
         print("INFO  screenRecording=\(ScreenCapture.isAuthorized) accessibility=\(WindowActions.isTrusted)")
 

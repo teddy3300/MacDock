@@ -19,11 +19,22 @@
   - 自动忽略未启动应用、右侧文件堆栈及废纸篓，避免无效干扰。
 
 - 🖥️ **大图居中放大**
-  - 鼠标移入小预览卡片时，自动在屏幕中央平滑放大为完整清晰预览，方便快速确认文档或网页细节。
+  - 鼠标移入小预览卡片时，自动在屏幕中央平滑放大为完整清晰预览，方便快速确认文档或网页细节。可配置仅在按住 Option 键时展开。
+
+- ⚙️ **丰富的个性化设置与偏好面板**
+  - 提供现代化原生 SwiftUI 偏好设置窗口（支持快捷键 `⌘,` 唤起）。
+  - **交互调节**：悬停防抖延迟（50ms~800ms）、离开消失延迟（100ms~1000ms）、鼠标中键动作定义。
+  - **窗口行为**：支持配置单窗口关闭时「仅关闭窗口（保留后台）」或「退出应用」。
+  - **应用黑名单**：可快捷添加排除应用（如密码管理器、游戏等），悬停时不弹窗打扰。
+  - **外观定制**：支持紧凑 (80pt) / 标准 (110pt) / 宽大 (140pt) 三档尺寸，可自由开启关闭标题栏、红叉按钮与 Chrome Profile 标签。
+
+- 📌 **系统菜单栏托盘与状态控制**
+  - 右上角常驻托盘图标，支持一键切换「暂停预览 / 恢复预览」、快速查看权限状态、呼出设置与退出。
 
 - ⚡ **无缝窗口交互**
   - **点击卡片**：毫秒级激活对应窗口并将其平滑带到最前台。
   - **一键关闭**：每个窗口卡片左上角配备红色关闭按钮，通过 Accessibility API 直接关闭目标窗口，无需切换前台。
+  - **中键支持**：中键点击预览卡片即可快速关闭窗口。
 
 - 🎯 **像素级精确定位**
   - 优先通过 Dock Accessibility API 动态获取图标绝对位置，辅以 `com.apple.dock.plist` 实时参数回退。
@@ -144,10 +155,14 @@ MacDock/
 │   └── run.sh                       # 快速拉起已构建应用
 └── Sources/MacDock/
     ├── main.swift                   # 程序入口与 CLI 诊断处理
-    ├── AppDelegate.swift            # 应用生命周期管理、NSWorkspace 监听
+    ├── AppDelegate.swift            # 应用生命周期管理、主菜单配置与工作区监听
     ├── OverlayController.swift      # 顶层统筹：协调监视器、预览面板与权限横幅
     ├── NativeDockGeometry.swift     # Dock 几何参数计算、plist 解析与回退
-    ├── MouseMonitor.swift           # 鼠标轨迹轮询、悬停命中判断
+    ├── MouseMonitor.swift           # 鼠标轨迹轮询、悬停防抖延迟命中判定
+    ├── Settings/                    # 偏好设置模块
+    │   ├── AppSettings.swift        # 用户偏好设置持久化与响应式中心
+    │   ├── SettingsView.swift       # 原生 SwiftUI 偏好设置多分栏界面
+    │   └── SettingsWindowController.swift # 偏好设置窗口生命周期调度
     ├── Models/                      # 数据模型 (DockItem, DockState)
     ├── Preview/                     # 预览视图实现
     │   ├── SmallPreviewPanel.swift  # Dock 上方悬浮预览小面板
@@ -157,8 +172,9 @@ MacDock/
     ├── Capture/                     # 截图引擎
     │   ├── ScreenCapture.swift      # ScreenCaptureKit / CG 截图适配层
     │   ├── WindowEnumerator.swift   # 过滤与枚举有效窗口列表
-    │   └── ThumbnailStore.swift     # 缩略图异步刷新与存储
+    │   └── ThumbnailStore.swift     # 缩略图异步刷新、存储与清理
     └── Support/                     # 底层辅助工具
+        ├── StatusBarController.swift# 顶部菜单栏状态图标与控制菜单
         ├── DockAccessibility.swift  # 通过 Accessibility API 读取真实图标 Frame
         ├── WindowActions.swift      # 辅助功能关闭与置顶窗口实现
         ├── AppIconCache.swift       # 应用图标缓存
