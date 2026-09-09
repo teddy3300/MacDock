@@ -110,17 +110,63 @@ enum TestSuite {
 
         check(SmallPreviewPanel.maxCards == 20, "small preview supports 20 windows")
         check(
-            SmallPreviewPanel.layoutWidth(windowCount: 5, screenWidth: 2560) == 360,
-            "five windows keep compact preview width"
+            SmallPreviewPanel.layoutWidth(windowCount: 1, screenWidth: 2560) == 300,
+            "single window keeps standard card width with padding"
         )
         check(
-            SmallPreviewPanel.layoutWidth(windowCount: 20, screenWidth: 2560) > 360,
+            SmallPreviewPanel.layoutWidth(windowCount: 5, screenWidth: 2560) == 1460,
+            "five windows layout width is 1460"
+        )
+        check(
+            SmallPreviewPanel.layoutWidth(windowCount: 20, screenWidth: 2560) > 1460,
             "twenty windows expand the preview row"
         )
         check(
             SmallPreviewPanel.layoutWidth(windowCount: 20, screenWidth: 1440) <= 1424,
             "twenty-window preview stays inside the screen"
         )
+
+        // WindowCardView 4-button header action tests
+        do {
+            let win = WindowInfo(id: 100, ownerName: "TestApp", ownerPID: 1, title: "Test Window", bounds: CGRect(x: 0, y: 0, width: 800, height: 600), layer: 0, isOnScreen: true)
+            let card = WindowCardView(window: win, cardSize: NSSize(width: 280, height: 200), thumbHeight: 160, closeSize: 16, footerHeight: 34, titleFontSize: 11, titleInHeader: true, displayTitle: "Test Window", showsCloseButton: true, showsTitle: true, allowsRefresh: false, fallbackImage: nil)
+            card.frame = NSRect(x: 0, y: 0, width: 280, height: 200)
+
+            // Hit test quit button
+            if case .quit(let qid) = card.action(atWindowPoint: NSPoint(x: 14, y: 171)) {
+                check(qid == 100, "card header quit button returns .quit action")
+            } else {
+                check(false, "card header quit button returns .quit action")
+            }
+
+            // Hit test close button
+            if case .close(let cid) = card.action(atWindowPoint: NSPoint(x: 36, y: 171)) {
+                check(cid == 100, "card header close button returns .close action")
+            } else {
+                check(false, "card header close button returns .close action")
+            }
+
+            // Hit test minimize button
+            if case .minimize(let mid) = card.action(atWindowPoint: NSPoint(x: 58, y: 171)) {
+                check(mid == 100, "card header minimize button returns .minimize action")
+            } else {
+                check(false, "card header minimize button returns .minimize action")
+            }
+
+            // Hit test fullscreen button
+            if case .fullscreen(let fid, _) = card.action(atWindowPoint: NSPoint(x: 80, y: 171)) {
+                check(fid == 100, "card header fullscreen button returns .fullscreen action")
+            } else {
+                check(false, "card header fullscreen button returns .fullscreen action")
+            }
+
+            // Hit test thumbnail body -> activate
+            if case .activate(let aid) = card.action(atWindowPoint: NSPoint(x: 140, y: 80)) {
+                check(aid == 100, "card body returns .activate action")
+            } else {
+                check(false, "card body returns .activate action")
+            }
+        }
 
         check(
             PreviewController.shouldUseSeamlessSwitch(

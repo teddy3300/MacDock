@@ -229,6 +229,61 @@ enum WindowActions {
         return true
     }
 
+    /// Minimize or restore a specific window via AX.
+    @discardableResult
+    static func minimizeWindow(bundleID: String, window: WindowInfo) -> Bool {
+        guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleID }) else { return false }
+        guard isTrusted, let axWin = axWindow(app: app, window: window) else { return false }
+
+        var minimizedRef: CFTypeRef?
+        let isMin = AXUIElementCopyAttributeValue(axWin, kAXMinimizedAttribute as CFString, &minimizedRef) == .success && (minimizedRef as? Bool == true)
+
+        let target = isMin ? kCFBooleanFalse : kCFBooleanTrue
+        let err = AXUIElementSetAttributeValue(axWin, kAXMinimizedAttribute as CFString, target!)
+        if err == .success { return true }
+
+        var minBtnRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(axWin, "AXMinimizeButton" as CFString, &minBtnRef) == .success,
+           let minBtnRef, CFGetTypeID(minBtnRef) == AXUIElementGetTypeID() {
+            let button = unsafeBitCast(minBtnRef, to: AXUIElement.self)
+            return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
+        }
+        return false
+    }
+
+    /// Fullscreen or Zoom (maximize) a specific window via AX.
+    @discardableResult
+    static func fullscreenWindow(bundleID: String, window: WindowInfo, zoomOnly: Bool = false) -> Bool {
+        guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleID }) else { return false }
+        guard isTrusted, let axWin = axWindow(app: app, window: window) else { return false }
+
+        _ = AXUIElementSetAttributeValue(axWin, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+        app.activate(options: [])
+        _ = AXUIElementPerformAction(axWin, kAXRaiseAction as CFString)
+
+        if zoomOnly {
+            var zoomBtnRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(axWin, "AXZoomButton" as CFString, &zoomBtnRef) == .success,
+               let zoomBtnRef, CFGetTypeID(zoomBtnRef) == AXUIElementGetTypeID() {
+                let button = unsafeBitCast(zoomBtnRef, to: AXUIElement.self)
+                return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
+            }
+        } else {
+            var fsBtnRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(axWin, "AXFullScreenButton" as CFString, &fsBtnRef) == .success,
+               let fsBtnRef, CFGetTypeID(fsBtnRef) == AXUIElementGetTypeID() {
+                let button = unsafeBitCast(fsBtnRef, to: AXUIElement.self)
+                return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
+            }
+
+            var fsRef: CFTypeRef?
+            let isFS = AXUIElementCopyAttributeValue(axWin, "AXFullScreen" as CFString, &fsRef) == .success && (fsRef as? Bool == true)
+            let target = isFS ? kCFBooleanFalse : kCFBooleanTrue
+            return AXUIElementSetAttributeValue(axWin, "AXFullScreen" as CFString, target!) == .success
+        }
+        return false
+    }
+
     /// User-requested fallback for a window that has no capturable backing
     /// frame. The window is restored without activating the app, captured,
     /// and returned to its previous minimized state.

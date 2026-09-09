@@ -108,8 +108,12 @@ final class PreviewController {
             let panel = SmallPreviewPanel(onEntered: { [weak self] in self?.smallEntered() },
                                           onExited: { [weak self] in self?.smallExited() })
             panel.onCardEntered = { [weak self] id in self?.smallCardEntered(id) }
+            panel.onCardHeaderEntered = { [weak self] id in self?.smallCardHeaderEntered(id) }
             panel.onCardClick = { [weak self] id in self?.activateWindow(id) }
             panel.onCardClose = { [weak self] id in self?.closeWindow(id) }
+            panel.onCardQuit = { [weak self] _ in self?.quitApplication() }
+            panel.onCardMinimize = { [weak self] id in self?.minimizeWindow(id) }
+            panel.onCardFullscreen = { [weak self] id, zoom in self?.fullscreenWindow(id, zoomOnly: zoom) }
             panel.onCardRefresh = { [weak self] id in self?.refreshWindowPreview(id) }
             smallPanel = panel
         }
@@ -205,6 +209,13 @@ final class PreviewController {
 
         selectedWindowID = id
         showFullPanel(for: id)
+    }
+
+    private func smallCardHeaderEntered(_ id: CGWindowID) {
+        overSmall = true
+        cancelClose()
+        selectedWindowID = nil
+        fullPanel?.orderOut(nil)
     }
 
     static func shouldExpandSecondLayer(
@@ -513,6 +524,9 @@ final class PreviewController {
         switch action {
         case let .activate(id): activateWindow(id)
         case let .close(id): closeWindow(id)
+        case .quit: quitApplication()
+        case let .minimize(id): minimizeWindow(id)
+        case let .fullscreen(id, zoomOnly): fullscreenWindow(id, zoomOnly: zoomOnly)
         case let .refresh(id): refreshWindowPreview(id)
         }
         return true
@@ -523,11 +537,39 @@ final class PreviewController {
         guard let action = smallPanel?.action(atScreenPoint: screenPoint) else { return false }
         let id: CGWindowID
         switch action {
-        case let .activate(windowID), let .close(windowID), let .refresh(windowID):
+        case let .activate(windowID), let .close(windowID), let .quit(windowID),
+             let .minimize(windowID), let .fullscreen(windowID, _), let .refresh(windowID):
             id = windowID
         }
         closeWindow(id)
         return true
+    }
+
+    func quitApplication() {
+        guard let bid = currentBundleID else { return }
+        Logger.log("first-layer quit app bundleID=\(bid)")
+        WindowActions.quitApplication(bundleID: bid)
+        closeAll()
+    }
+
+    func minimizeWindow(_ id: CGWindowID) {
+        guard let bid = currentBundleID,
+              let win = windows.first(where: { $0.id == id }) else { return }
+        Logger.log("first-layer minimize id=\(id) title=\(win.title)")
+        WindowActions.minimizeWindow(bundleID: bid, window: win)
+        let generation = sessionGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self, self.sessionGeneration == generation else { return }
+            self.refreshNow()
+        }
+    }
+
+    func fullscreenWindow(_ id: CGWindowID, zoomOnly: Bool) {
+        guard let bid = currentBundleID,
+              let win = windows.first(where: { $0.id == id }) else { return }
+        Logger.log("first-layer fullscreen id=\(id) zoomOnly=\(zoomOnly) title=\(win.title)")
+        WindowActions.fullscreenWindow(bundleID: bid, window: win, zoomOnly: zoomOnly)
+        closeAll()
     }
 
     private func refreshWindowPreview(_ id: CGWindowID) {

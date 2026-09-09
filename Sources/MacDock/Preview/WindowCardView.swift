@@ -3,6 +3,9 @@ import AppKit
 enum PreviewCardAction {
     case activate(CGWindowID)
     case close(CGWindowID)
+    case quit(CGWindowID)
+    case minimize(CGWindowID)
+    case fullscreen(CGWindowID, zoomOnly: Bool)
     case refresh(CGWindowID)
 }
 
@@ -11,24 +14,36 @@ final class WindowCardView: NSView {
     let windowID: CGWindowID
     var onClick: ((CGWindowID) -> Void)?
     var onClose: ((CGWindowID) -> Void)?
+    var onQuit: ((CGWindowID) -> Void)?
+    var onMinimize: ((CGWindowID) -> Void)?
+    var onFullscreen: ((CGWindowID, Bool) -> Void)? // bool is zoomOnly (Option key)
     var onRefresh: ((CGWindowID) -> Void)?
-    var onEntered: ((CGWindowID) -> Void)?
-    var onExited: ((CGWindowID) -> Void)?
+    var onEntered: ((CGWindowID) -> Void)?           // Thumbnail entered (triggers full preview)
+    var onExited: ((CGWindowID) -> Void)?            // Thumbnail exited
+    var onHeaderEntered: ((CGWindowID) -> Void)?     // Header/buttons entered (prevents full preview)
 
     private let imageView = NSImageView()
+    private let headerView = NSView()
+    private let buttonsPill = NSView()
+    private let titlePill = NSView()
+    private let quitButton = NSButton()
     private let closeButton = NSButton()
-    private let refreshButton = NSButton()
+    private let minimizeButton = NSButton()
+    private let fullscreenButton = NSButton()
     private let titleLabel = NSTextField(labelWithString: "")
     private let statusLabel = NSTextField(labelWithString: "")
+    private let refreshButton = NSButton()
+
     private let thumbHeight: CGFloat
     private let footerHeight: CGFloat
     private let titleFontSize: CGFloat
     private let titleInHeader: Bool
     private let allowsRefresh: Bool
     private let fallbackImage: NSImage?
-    private var trackingArea: NSTrackingArea?
+    private var thumbTrackingArea: NSTrackingArea?
+    private var headerTrackingArea: NSTrackingArea?
 
-    static func fittedSize(for window: WindowInfo, maxSize: NSSize, footerHeight: CGFloat = 30) -> (card: NSSize, image: NSSize) {
+    static func fittedSize(for window: WindowInfo, maxSize: NSSize, footerHeight: CGFloat = 34) -> (card: NSSize, image: NSSize) {
         let aspect: CGFloat
         if window.bounds.width <= 2 || window.bounds.height <= 2 {
             aspect = 16.0 / 9.0
@@ -40,11 +55,13 @@ final class WindowCardView: NSView {
             image.height = maxSize.height
             image.width = image.height * aspect
         }
-        return (NSSize(width: image.width, height: image.height + footerHeight), image)
+        let minWidth: CGFloat = footerHeight > 0 ? 260 : 120
+        let finalWidth = max(image.width, minWidth)
+        return (NSSize(width: finalWidth, height: image.height + footerHeight), NSSize(width: finalWidth, height: image.height))
     }
 
-    init(window: WindowInfo, cardSize: NSSize, thumbHeight: CGFloat, closeSize: CGFloat = 18,
-         footerHeight: CGFloat = 30, titleFontSize: CGFloat = 10,
+    init(window: WindowInfo, cardSize: NSSize, thumbHeight: CGFloat, closeSize: CGFloat = 16,
+         footerHeight: CGFloat = 34, titleFontSize: CGFloat = 11,
          titleInHeader: Bool = false,
          displayTitle: String? = nil,
          showsCloseButton: Bool = true,
@@ -59,14 +76,18 @@ final class WindowCardView: NSView {
         self.allowsRefresh = allowsRefresh
         self.fallbackImage = fallbackImage
         super.init(frame: NSRect(origin: .zero, size: cardSize))
+
         wantsLayer = true
         setContentHuggingPriority(.required, for: .horizontal)
         setContentHuggingPriority(.required, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .horizontal)
         setContentCompressionResistancePriority(.required, for: .vertical)
-        layer?.cornerRadius = 8
+
+        layer?.cornerRadius = 10
         layer?.borderWidth = 1
         layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+        layer?.backgroundColor = NSColor(white: 0.25, alpha: 0.35).cgColor
+        layer?.masksToBounds = true
 
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
@@ -75,33 +96,12 @@ final class WindowCardView: NSView {
         imageView.layer?.backgroundColor = NSColor.clear.cgColor
         addSubview(imageView)
 
-        titleLabel.stringValue = displayTitle ?? (window.title.isEmpty ? "窗口" : window.title)
-        titleLabel.font = .systemFont(ofSize: titleFontSize, weight: .medium)
-        titleLabel.textColor = .labelColor
-        titleLabel.alignment = titleInHeader ? .left : .center
-        titleLabel.lineBreakMode = .byTruncatingTail
-        titleLabel.maximumNumberOfLines = 1
-        titleLabel.isHidden = !showsTitle
-        addSubview(titleLabel)
-
-        statusLabel.font = .systemFont(ofSize: 14, weight: .medium)
+        statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         statusLabel.textColor = NSColor.secondaryLabelColor
         statusLabel.alignment = .center
         statusLabel.stringValue = "预览不可用"
         statusLabel.isHidden = true
         addSubview(statusLabel)
-
-        closeButton.isBordered = false
-        closeButton.title = "×"
-        closeButton.font = .systemFont(ofSize: 13, weight: .semibold)
-        closeButton.contentTintColor = .white
-        closeButton.wantsLayer = true
-        closeButton.layer?.backgroundColor = NSColor.systemRed.cgColor
-        closeButton.layer?.cornerRadius = closeSize / 2
-        closeButton.target = self
-        closeButton.action = #selector(closePressed)
-        closeButton.isHidden = !showsCloseButton
-        addSubview(closeButton)
 
         refreshButton.isBordered = false
         refreshButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "刷新预览")
@@ -116,77 +116,231 @@ final class WindowCardView: NSView {
         refreshButton.isHidden = !allowsRefresh
         addSubview(refreshButton)
 
+        if titleInHeader {
+            buildRichHeader(displayTitle: displayTitle ?? window.title,
+                            showsCloseButton: showsCloseButton,
+                            showsTitle: showsTitle,
+                            closeSize: closeSize)
+        } else {
+            buildSimpleFooter(displayTitle: displayTitle ?? window.title,
+                              showsCloseButton: showsCloseButton,
+                              closeSize: closeSize)
+        }
+
         layoutCard(cardSize: cardSize, closeSize: closeSize)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override var intrinsicContentSize: NSSize { bounds.size }
+    private func buildRichHeader(displayTitle: String, showsCloseButton: Bool, showsTitle: Bool, closeSize: CGFloat) {
+        headerView.wantsLayer = true
+        addSubview(headerView)
 
+        // Buttons capsule
+        buttonsPill.wantsLayer = true
+        buttonsPill.layer?.cornerRadius = 13
+        buttonsPill.layer?.backgroundColor = NSColor(white: 0.15, alpha: 0.45).cgColor
+        buttonsPill.layer?.borderWidth = 0.5
+        buttonsPill.layer?.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
+        headerView.addSubview(buttonsPill)
+
+        // 1. Quit button (Pinkish red)
+        setupCircleButton(quitButton,
+                          sfSymbol: "power",
+                          fallbackChar: "⏻",
+                          color: NSColor(srgbRed: 0.95, green: 0.42, blue: 0.55, alpha: 0.9),
+                          tooltip: "退出应用程序",
+                          action: #selector(quitPressed))
+        buttonsPill.addSubview(quitButton)
+
+        // 2. Close button (Red)
+        setupCircleButton(closeButton,
+                          sfSymbol: "xmark",
+                          fallbackChar: "✕",
+                          color: NSColor(srgbRed: 1.0, green: 0.38, blue: 0.35, alpha: 0.9),
+                          tooltip: "关闭此窗口",
+                          action: #selector(closePressed))
+        buttonsPill.addSubview(closeButton)
+
+        // 3. Minimize button (Yellow)
+        setupCircleButton(minimizeButton,
+                          sfSymbol: "minus",
+                          fallbackChar: "—",
+                          color: NSColor(srgbRed: 1.0, green: 0.75, blue: 0.18, alpha: 0.9),
+                          tooltip: "最小化窗口",
+                          action: #selector(minimizePressed))
+        buttonsPill.addSubview(minimizeButton)
+
+        // 4. Fullscreen button (Green)
+        setupCircleButton(fullscreenButton,
+                          sfSymbol: "arrow.up.left.and.arrow.down.right",
+                          fallbackChar: "⤢",
+                          color: NSColor(srgbRed: 0.18, green: 0.80, blue: 0.35, alpha: 0.9),
+                          tooltip: "全屏 (按住 Option 最大化)",
+                          action: #selector(fullscreenPressed))
+        buttonsPill.addSubview(fullscreenButton)
+
+        // Title capsule
+        titlePill.wantsLayer = true
+        titlePill.layer?.cornerRadius = 13
+        titlePill.layer?.backgroundColor = NSColor(white: 0.15, alpha: 0.45).cgColor
+        titlePill.layer?.borderWidth = 0.5
+        titlePill.layer?.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
+        headerView.addSubview(titlePill)
+
+        titleLabel.stringValue = displayTitle.isEmpty ? "窗口" : displayTitle
+        titleLabel.font = .systemFont(ofSize: titleFontSize, weight: .medium)
+        titleLabel.textColor = .labelColor
+        titleLabel.alignment = .center
+        titleLabel.lineBreakMode = .byTruncatingMiddle
+        titleLabel.maximumNumberOfLines = 1
+        titleLabel.toolTip = displayTitle
+        titleLabel.isHidden = !showsTitle
+        titlePill.addSubview(titleLabel)
+
+        buttonsPill.isHidden = !showsCloseButton
+    }
+
+    private func buildSimpleFooter(displayTitle: String, showsCloseButton: Bool, closeSize: CGFloat) {
+        titleLabel.stringValue = displayTitle.isEmpty ? "窗口" : displayTitle
+        titleLabel.font = .systemFont(ofSize: titleFontSize, weight: .medium)
+        titleLabel.textColor = .labelColor
+        titleLabel.alignment = .center
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.maximumNumberOfLines = 1
+        addSubview(titleLabel)
+
+        closeButton.isBordered = false
+        closeButton.title = "×"
+        closeButton.font = .systemFont(ofSize: 13, weight: .semibold)
+        closeButton.contentTintColor = .white
+        closeButton.wantsLayer = true
+        closeButton.layer?.backgroundColor = NSColor.systemRed.cgColor
+        closeButton.layer?.cornerRadius = closeSize / 2
+        closeButton.target = self
+        closeButton.action = #selector(closePressed)
+        closeButton.isHidden = !showsCloseButton
+        addSubview(closeButton)
+    }
+
+    private func setupCircleButton(_ btn: NSButton, sfSymbol: String, fallbackChar: String, color: NSColor, tooltip: String, action: Selector) {
+        btn.isBordered = false
+        btn.toolTip = tooltip
+        btn.target = self
+        btn.action = action
+        btn.wantsLayer = true
+        btn.layer?.backgroundColor = color.cgColor
+        btn.layer?.cornerRadius = 8
+        btn.layer?.masksToBounds = true
+
+        if let img = NSImage(systemSymbolName: sfSymbol, accessibilityDescription: tooltip) {
+            let config = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)
+            btn.image = img.withSymbolConfiguration(config) ?? img
+            btn.imagePosition = .imageOnly
+            btn.contentTintColor = .white
+        } else {
+            btn.title = fallbackChar
+            btn.font = .systemFont(ofSize: 9, weight: .bold)
+            btn.contentTintColor = .white
+        }
+    }
+
+    override var intrinsicContentSize: NSSize { bounds.size }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        if let trackingArea { removeTrackingArea(trackingArea) }
-        let area = NSTrackingArea(rect: bounds,
-                                  options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
-                                  owner: self, userInfo: nil)
-        addTrackingArea(area)
-        trackingArea = area
+        if let thumbTrackingArea { removeTrackingArea(thumbTrackingArea) }
+        if let headerTrackingArea { removeTrackingArea(headerTrackingArea) }
+
+        if titleInHeader && footerHeight > 0 {
+            let headerRect = NSRect(x: 0, y: thumbHeight, width: bounds.width, height: footerHeight)
+            let hArea = NSTrackingArea(rect: headerRect,
+                                       options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
+                                       owner: self,
+                                       userInfo: ["zone": "header"])
+            addTrackingArea(hArea)
+            headerTrackingArea = hArea
+
+            let thumbRect = NSRect(x: 0, y: 0, width: bounds.width, height: thumbHeight)
+            let tArea = NSTrackingArea(rect: thumbRect,
+                                       options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
+                                       owner: self,
+                                       userInfo: ["zone": "thumbnail"])
+            addTrackingArea(tArea)
+            thumbTrackingArea = tArea
+        } else {
+            let area = NSTrackingArea(rect: bounds,
+                                      options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
+                                      owner: self,
+                                      userInfo: ["zone": "full"])
+            addTrackingArea(area)
+            thumbTrackingArea = area
+        }
     }
 
-    override func mouseEntered(with event: NSEvent) { onEntered?(windowID) }
-    override func mouseExited(with event: NSEvent) { onExited?(windowID) }
+    override func mouseEntered(with event: NSEvent) {
+        let zone = (event.trackingArea?.userInfo as? [String: String])?["zone"]
+        if zone == "header" {
+            onHeaderEntered?(windowID)
+        } else {
+            onEntered?(windowID)
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        let zone = (event.trackingArea?.userInfo as? [String: String])?["zone"]
+        if zone != "header" {
+            onExited?(windowID)
+        }
+    }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard bounds.contains(point) else { return nil }
-        // Image/title/status subviews are display-only. Route their clicks to
-        // the card so clicking anywhere in the preview activates this exact
-        // window; keep the macOS-style close button independently clickable.
-        if !closeButton.isHidden, closeButton.frame.contains(point) { return closeButton }
-        if !refreshButton.isHidden, refreshButton.frame.contains(point) { return refreshButton }
+        guard let view = super.hitTest(point) else { return nil }
+        if view == quitButton || view == closeButton || view == minimizeButton || view == fullscreenButton || view == refreshButton {
+            return view
+        }
         return self
     }
 
     private func layoutCard(cardSize: NSSize, closeSize: CGFloat) {
         if titleInHeader {
-            // First-layer cards use a compact title bar above the thumbnail:
-            // the close affordance and title share one stable horizontal row.
-            imageView.frame = NSRect(x: 0, y: 0, width: cardSize.width, height: thumbHeight)
-            if footerHeight > 0 {
-                titleLabel.frame = NSRect(x: closeSize + 12,
-                                          y: thumbHeight,
-                                          width: max(0, cardSize.width - closeSize - 16),
-                                          height: max(12, footerHeight))
-                closeButton.frame = NSRect(x: 5,
-                                           y: thumbHeight + (footerHeight - closeSize) / 2,
-                                           width: closeSize, height: closeSize)
-            } else {
-                titleLabel.frame = .zero
-                closeButton.frame = NSRect(x: 6,
-                                           y: max(0, thumbHeight - closeSize - 6),
-                                           width: closeSize, height: closeSize)
-            }
-            refreshButton.frame = NSRect(x: cardSize.width - 26, y: 6, width: 20, height: 20)
-            statusLabel.frame = NSRect(x: 8, y: thumbHeight / 2 - 12,
-                                       width: cardSize.width - 16, height: 24)
+            headerView.frame = NSRect(x: 0, y: thumbHeight, width: cardSize.width, height: footerHeight)
+            imageView.frame = NSRect(x: 4, y: 4, width: cardSize.width - 8, height: thumbHeight - 6)
+
+            let pillY = (footerHeight - 26) / 2
+            buttonsPill.frame = NSRect(x: 6, y: pillY, width: 94, height: 26)
+
+            let bSize: CGFloat = 16
+            let bY: CGFloat = 5
+            quitButton.frame = NSRect(x: 6, y: bY, width: bSize, height: bSize)
+            closeButton.frame = NSRect(x: 28, y: bY, width: bSize, height: bSize)
+            minimizeButton.frame = NSRect(x: 50, y: bY, width: bSize, height: bSize)
+            fullscreenButton.frame = NSRect(x: 72, y: bY, width: bSize, height: bSize)
+
+            let titleX = buttonsPill.isHidden ? 6 : buttonsPill.frame.maxX + 8
+            let titleWidth = max(40, cardSize.width - titleX - 6)
+            titlePill.frame = NSRect(x: titleX, y: pillY, width: titleWidth, height: 26)
+            titleLabel.frame = NSRect(x: 8, y: 3, width: max(10, titleWidth - 16), height: 20)
+
+            refreshButton.frame = NSRect(x: cardSize.width - 28, y: 8, width: 20, height: 20)
+            statusLabel.frame = NSRect(x: 8, y: thumbHeight / 2 - 12, width: cardSize.width - 16, height: 24)
         } else {
-            // Full preview cards keep their existing footer title treatment.
             imageView.frame = NSRect(x: 0, y: footerHeight, width: cardSize.width, height: thumbHeight)
-            titleLabel.frame = NSRect(x: 0, y: 0, width: cardSize.width,
-                                      height: max(12, footerHeight))
-            statusLabel.frame = NSRect(x: 8, y: footerHeight + thumbHeight / 2 - 12,
-                                       width: cardSize.width - 16, height: 24)
-            closeButton.frame = NSRect(x: 8,
-                                       y: cardSize.height - closeSize - 8,
-                                       width: closeSize, height: closeSize)
-            refreshButton.frame = NSRect(x: cardSize.width - 30,
-                                         y: footerHeight + 8,
-                                         width: 22, height: 22)
+            titleLabel.frame = NSRect(x: 0, y: 0, width: cardSize.width, height: max(12, footerHeight))
+            statusLabel.frame = NSRect(x: 8, y: footerHeight + thumbHeight / 2 - 12, width: cardSize.width - 16, height: 24)
+            closeButton.frame = NSRect(x: 8, y: cardSize.height - closeSize - 8, width: closeSize, height: closeSize)
+            refreshButton.frame = NSRect(x: cardSize.width - 30, y: footerHeight + 8, width: 22, height: 22)
         }
     }
 
+    @objc private func quitPressed() { onQuit?(windowID) }
     @objc private func closePressed() { onClose?(windowID) }
+    @objc private func minimizePressed() { onMinimize?(windowID) }
+    @objc private func fullscreenPressed() {
+        let zoom = NSEvent.modifierFlags.contains(.option)
+        onFullscreen?(windowID, zoom)
+    }
     @objc private func refreshPressed() { onRefresh?(windowID) }
 
     override func mouseDown(with event: NSEvent) {
@@ -211,9 +365,33 @@ final class WindowCardView: NSView {
     func action(atWindowPoint point: NSPoint) -> PreviewCardAction? {
         let localPoint = convert(point, from: nil)
         guard bounds.contains(localPoint) else { return nil }
-        if !closeButton.isHidden, closeButton.frame.contains(localPoint) { return .close(windowID) }
-        if !refreshButton.isHidden, refreshButton.frame.contains(localPoint) {
-            return .refresh(windowID)
+
+        if titleInHeader {
+            if !buttonsPill.isHidden {
+                let pInPill = buttonsPill.convert(localPoint, from: self)
+                if buttonsPill.bounds.contains(pInPill) {
+                    if quitButton.frame.contains(pInPill) { return .quit(windowID) }
+                    if closeButton.frame.contains(pInPill) { return .close(windowID) }
+                    if minimizeButton.frame.contains(pInPill) { return .minimize(windowID) }
+                    if fullscreenButton.frame.contains(pInPill) {
+                        return .fullscreen(windowID, zoomOnly: NSEvent.modifierFlags.contains(.option))
+                    }
+                }
+            }
+        } else {
+            if !closeButton.isHidden {
+                let pClose = closeButton.convert(localPoint, from: self)
+                if closeButton.bounds.contains(pClose) {
+                    return .close(windowID)
+                }
+            }
+        }
+
+        if !refreshButton.isHidden {
+            let pRefresh = refreshButton.convert(localPoint, from: self)
+            if refreshButton.bounds.contains(pRefresh) {
+                return .refresh(windowID)
+            }
         }
         return .activate(windowID)
     }
