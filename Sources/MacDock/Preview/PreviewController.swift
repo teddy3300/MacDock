@@ -11,6 +11,7 @@ final class PreviewController {
     private var fullPanel: FullPreviewPanel?
     private var refreshTimer: Timer?
     private var closeTimer: Timer?
+    private var liveStreamDebounceTimer: Timer?
     private var currentBundleID: String?
     private var currentPID: pid_t?
     private var currentAppName = ""
@@ -163,6 +164,8 @@ final class PreviewController {
         overSmall = false
         overFull = false
         cancelClose()
+        liveStreamDebounceTimer?.invalidate()
+        liveStreamDebounceTimer = nil
         selectedWindowID = nil
         fullPanel?.orderOut(nil)
     }
@@ -207,6 +210,10 @@ final class PreviewController {
             return
         }
 
+        if selectedWindowID == id, fullPanel?.isVisible == true {
+            return
+        }
+
         selectedWindowID = id
         showFullPanel(for: id)
     }
@@ -214,6 +221,8 @@ final class PreviewController {
     private func smallCardHeaderEntered(_ id: CGWindowID) {
         overSmall = true
         cancelClose()
+        liveStreamDebounceTimer?.invalidate()
+        liveStreamDebounceTimer = nil
         selectedWindowID = nil
         fullPanel?.orderOut(nil)
     }
@@ -228,6 +237,8 @@ final class PreviewController {
 
     func smallExited() {
         overSmall = false
+        liveStreamDebounceTimer?.invalidate()
+        liveStreamDebounceTimer = nil
         selectedWindowID = nil
         fullPanel?.orderOut(nil)
         armClose()
@@ -408,12 +419,28 @@ final class PreviewController {
         let h = min(size.height, screen.height - 60)
         let x = screen.midX - w / 2
         let y = max(screen.minY + 60, screen.midY - h / 2)
-        panel.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
+        let targetFrame = NSRect(x: x, y: y, width: w, height: h)
+
+        if panel.isVisible && panel.frame != targetFrame {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.12
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(targetFrame, display: true)
+            }
+        } else {
+            panel.setFrame(targetFrame, display: true)
+        }
         panel.orderFrontRegardless()
         smallPanel?.orderFrontRegardless()
 
+        liveStreamDebounceTimer?.invalidate()
         if AppSettings.shared.enableLiveStreamPreview, window.isOnScreen {
-            panel.startLiveStream(for: window, frameRate: AppSettings.shared.liveStreamFPS)
+            // Debounce stream start by 60ms so fast mouse skimming displays instant snapshots
+            // without choking ScreenCaptureKit with rapid start/stop cycles.
+            liveStreamDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.06, repeats: false) { [weak self] _ in
+                guard let self, self.selectedWindowID == id else { return }
+                self.fullPanel?.startLiveStream(for: window, frameRate: AppSettings.shared.liveStreamFPS)
+            }
         }
     }
 
@@ -425,8 +452,12 @@ final class PreviewController {
             return
         }
         fullPanel?.setWindows([selected], images: images, appName: currentAppName, appIcon: currentAppIcon)
+        liveStreamDebounceTimer?.invalidate()
         if AppSettings.shared.enableLiveStreamPreview, selected.isOnScreen {
-            fullPanel?.startLiveStream(for: selected, frameRate: AppSettings.shared.liveStreamFPS)
+            liveStreamDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.06, repeats: false) { [weak self] _ in
+                guard let self, self.selectedWindowID == selected.id else { return }
+                self.fullPanel?.startLiveStream(for: selected, frameRate: AppSettings.shared.liveStreamFPS)
+            }
         }
     }
 
@@ -640,6 +671,8 @@ final class PreviewController {
 
     func closeAll() {
         cancelClose()
+        liveStreamDebounceTimer?.invalidate()
+        liveStreamDebounceTimer = nil
         sessionGeneration &+= 1
         capturing = false
         refreshTimer?.invalidate()

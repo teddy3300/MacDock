@@ -38,7 +38,7 @@ enum PreviewCardAction {
 
 /// One window thumbnail card used by both preview panels.
 final class WindowCardView: NSView {
-    let windowID: CGWindowID
+    private(set) var windowID: CGWindowID
     var onClick: ((CGWindowID) -> Void)?
     var onClose: ((CGWindowID) -> Void)?
     var onQuit: ((CGWindowID) -> Void)?
@@ -63,14 +63,35 @@ final class WindowCardView: NSView {
     private let statusLabel = NSTextField(labelWithString: "")
     private let refreshButton = NSButton()
 
-    private let thumbHeight: CGFloat
+    private var thumbHeight: CGFloat
     private let footerHeight: CGFloat
     private let titleFontSize: CGFloat
     private let titleInHeader: Bool
     private let allowsRefresh: Bool
-    private let fallbackImage: NSImage?
+    private var fallbackImage: NSImage?
     private var thumbTrackingArea: NSTrackingArea?
     private var headerTrackingArea: NSTrackingArea?
+
+    func update(
+        window: WindowInfo,
+        cardSize: NSSize,
+        thumbHeight: CGFloat,
+        displayTitle: String? = nil,
+        image: CGImage?,
+        fallbackImage: NSImage? = nil
+    ) {
+        self.windowID = window.id
+        self.thumbHeight = thumbHeight
+        if let fallbackImage { self.fallbackImage = fallbackImage }
+        frame = NSRect(origin: frame.origin, size: cardSize)
+        let title = displayTitle ?? window.title
+        titleLabel.stringValue = title.isEmpty ? "窗口" : title
+        titleLabel.toolTip = title
+        minimizedBadge.isHidden = window.isOnScreen
+        hideLiveStream()
+        setImage(image)
+        layoutCard(cardSize: cardSize, closeSize: 16)
+    }
 
     static func fittedSize(for window: WindowInfo, maxSize: NSSize, footerHeight: CGFloat = 34) -> (card: NSSize, image: NSSize) {
         let aspect: CGFloat

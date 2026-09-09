@@ -143,7 +143,7 @@ if args.contains("--selftest") {
 }
 
 if args.contains("--version") || args.contains("-v") {
-    print("MacDock 1.1.0")
+    print("MacDock 1.1.1")
     exit(0)
 }
 

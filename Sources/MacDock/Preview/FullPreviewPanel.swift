@@ -100,11 +100,6 @@ final class FullPreviewPanel: NSPanel {
         } else {
             headerLabel.stringValue = appName + " · \(windows.count) 个窗口"
         }
-        for v in cardsStack.arrangedSubviews {
-            cardsStack.removeArrangedSubview(v)
-            v.removeFromSuperview()
-        }
-        cards.removeAll()
         let visible = Array(windows.prefix(Self.maxCards))
         let count = max(visible.count, 1)
         let screenWidth = NSScreen.main?.frame.width ?? 1440
@@ -124,19 +119,44 @@ final class FullPreviewPanel: NSPanel {
         let cardWidth = min(maximumCardWidth, availableCardWidth)
         var totalWidth = Self.padding * 2 + CGFloat(max(visible.count - 1, 0)) * Self.spacing
         var maxHeight: CGFloat = 0
-        for w in visible {
+
+        // In-place card reuse when displaying a single window (common case during hover)
+        if visible.count == 1, let w = visible.first, let existingCard = cardsStack.arrangedSubviews.first as? WindowCardView {
             let fitted = WindowCardView.fittedSize(for: w,
                                                    maxSize: NSSize(width: cardWidth, height: maxImageHeight))
-            let card = WindowCardView(window: w, cardSize: fitted.card, thumbHeight: fitted.image.height,
-                                      showsCloseButton: false,
-                                      fallbackImage: appIcon)
-            card.onClick = { [weak self] id in self?.onCardClick?(id) }
-            card.setImage(images[w.id])
-            cards[w.id] = card
-            cardsStack.addArrangedSubview(card)
+            existingCard.update(
+                window: w,
+                cardSize: fitted.card,
+                thumbHeight: fitted.image.height,
+                displayTitle: w.title.isEmpty ? appName : w.title,
+                image: images[w.id],
+                fallbackImage: appIcon
+            )
+            cards.removeAll()
+            cards[w.id] = existingCard
             totalWidth += fitted.card.width
             maxHeight = max(maxHeight, fitted.card.height)
+        } else {
+            for v in cardsStack.arrangedSubviews {
+                cardsStack.removeArrangedSubview(v)
+                v.removeFromSuperview()
+            }
+            cards.removeAll()
+            for w in visible {
+                let fitted = WindowCardView.fittedSize(for: w,
+                                                       maxSize: NSSize(width: cardWidth, height: maxImageHeight))
+                let card = WindowCardView(window: w, cardSize: fitted.card, thumbHeight: fitted.image.height,
+                                          showsCloseButton: false,
+                                          fallbackImage: appIcon)
+                card.onClick = { [weak self] id in self?.onCardClick?(id) }
+                card.setImage(images[w.id])
+                cards[w.id] = card
+                cardsStack.addArrangedSubview(card)
+                totalWidth += fitted.card.width
+                maxHeight = max(maxHeight, fitted.card.height)
+            }
         }
+
         layoutSize = NSSize(width: visible.isEmpty ? 1020 : totalWidth,
                             height: visible.isEmpty ? 750 : 20 + 6 + maxHeight + Self.padding * 2 + 8)
     }
