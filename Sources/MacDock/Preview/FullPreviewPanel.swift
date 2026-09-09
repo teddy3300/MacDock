@@ -92,7 +92,14 @@ final class FullPreviewPanel: NSPanel {
 
     func setWindows(_ windows: [WindowInfo], images: [CGWindowID: CGImage], appName: String,
                     appIcon: NSImage? = nil) {
-        headerLabel.stringValue = appName + " · \(windows.count) 个窗口"
+        stopLiveStream()
+        if windows.count == 1, let first = windows.first {
+            let title = first.title.isEmpty ? appName : first.title
+            let status = first.isOnScreen ? "" : " (已最小化)"
+            headerLabel.stringValue = "\(appName) · \(title)\(status)"
+        } else {
+            headerLabel.stringValue = appName + " · \(windows.count) 个窗口"
+        }
         for v in cardsStack.arrangedSubviews {
             cardsStack.removeArrangedSubview(v)
             v.removeFromSuperview()
@@ -132,6 +139,32 @@ final class FullPreviewPanel: NSPanel {
         }
         layoutSize = NSSize(width: visible.isEmpty ? 1020 : totalWidth,
                             height: visible.isEmpty ? 750 : 20 + 6 + maxHeight + Self.padding * 2 + 8)
+    }
+
+    func startLiveStream(for window: WindowInfo, frameRate: Int) {
+        guard window.isOnScreen else { return }
+        guard let card = cards[window.id],
+              let displayLayer = card.displayLayerForLiveStream() else { return }
+        LiveStreamManager.shared.startStream(
+            for: window.id,
+            frameRate: frameRate,
+            displayLayer: displayLayer,
+            onFirstFrame: { [weak card] in
+                card?.showLiveStream()
+            }
+        )
+    }
+
+    func stopLiveStream() {
+        LiveStreamManager.shared.stopCurrentStream()
+        for card in cards.values {
+            card.hideLiveStream()
+        }
+    }
+
+    override func orderOut(_ sender: Any?) {
+        stopLiveStream()
+        super.orderOut(sender)
     }
 
     func updateImage(_ image: CGImage?, for windowID: CGWindowID) {

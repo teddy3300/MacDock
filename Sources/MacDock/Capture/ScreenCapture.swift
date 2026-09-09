@@ -127,7 +127,7 @@ enum ScreenCapture {
         }
     }
 
-    private static func shareableWindow(
+    static func shareableWindow(
         for id: CGWindowID,
         completion: @escaping (SCWindow?) -> Void
     ) {

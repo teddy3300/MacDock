@@ -1,4 +1,31 @@
 import AppKit
+import AVFoundation
+
+/// Backing view holding an AVSampleBufferDisplayLayer for GPU hardware-accelerated video rendering.
+final class LiveStreamView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+    }
+
+    override func makeBackingLayer() -> CALayer {
+        let layer = AVSampleBufferDisplayLayer()
+        layer.videoGravity = .resizeAspect
+        layer.backgroundColor = NSColor.clear.cgColor
+        layer.cornerRadius = 8
+        layer.masksToBounds = true
+        return layer
+    }
+
+    var displayLayer: AVSampleBufferDisplayLayer? {
+        layer as? AVSampleBufferDisplayLayer
+    }
+}
 
 enum PreviewCardAction {
     case activate(CGWindowID)
@@ -23,6 +50,8 @@ final class WindowCardView: NSView {
     var onHeaderEntered: ((CGWindowID) -> Void)?     // Header/buttons entered (prevents full preview)
 
     private let imageView = NSImageView()
+    private let liveStreamView = LiveStreamView()
+    private let minimizedBadge = NSTextField(labelWithString: "已最小化")
     private let headerView = NSView()
     private let buttonsPill = NSView()
     private let titlePill = NSView()
@@ -95,6 +124,20 @@ final class WindowCardView: NSView {
         imageView.layer?.masksToBounds = true
         imageView.layer?.backgroundColor = NSColor.clear.cgColor
         addSubview(imageView)
+
+        liveStreamView.alphaValue = 0
+        liveStreamView.isHidden = true
+        addSubview(liveStreamView)
+
+        minimizedBadge.font = .systemFont(ofSize: 10, weight: .semibold)
+        minimizedBadge.textColor = .white
+        minimizedBadge.alignment = .center
+        minimizedBadge.wantsLayer = true
+        minimizedBadge.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.65).cgColor
+        minimizedBadge.layer?.cornerRadius = 9
+        minimizedBadge.layer?.masksToBounds = true
+        minimizedBadge.isHidden = window.isOnScreen
+        addSubview(minimizedBadge)
 
         statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         statusLabel.textColor = NSColor.secondaryLabelColor
@@ -307,6 +350,8 @@ final class WindowCardView: NSView {
         if titleInHeader {
             headerView.frame = NSRect(x: 0, y: thumbHeight, width: cardSize.width, height: footerHeight)
             imageView.frame = NSRect(x: 4, y: 4, width: cardSize.width - 8, height: thumbHeight - 6)
+            liveStreamView.frame = imageView.frame
+            minimizedBadge.frame = NSRect(x: cardSize.width - 66, y: thumbHeight - 26, width: 58, height: 18)
 
             let pillY = (footerHeight - 26) / 2
             buttonsPill.frame = NSRect(x: 6, y: pillY, width: 94, height: 26)
@@ -327,11 +372,31 @@ final class WindowCardView: NSView {
             statusLabel.frame = NSRect(x: 8, y: thumbHeight / 2 - 12, width: cardSize.width - 16, height: 24)
         } else {
             imageView.frame = NSRect(x: 0, y: footerHeight, width: cardSize.width, height: thumbHeight)
+            liveStreamView.frame = imageView.frame
+            minimizedBadge.frame = NSRect(x: cardSize.width - 66, y: cardSize.height - 26, width: 58, height: 18)
             titleLabel.frame = NSRect(x: 0, y: 0, width: cardSize.width, height: max(12, footerHeight))
             statusLabel.frame = NSRect(x: 8, y: footerHeight + thumbHeight / 2 - 12, width: cardSize.width - 16, height: 24)
             closeButton.frame = NSRect(x: 8, y: cardSize.height - closeSize - 8, width: closeSize, height: closeSize)
             refreshButton.frame = NSRect(x: cardSize.width - 30, y: footerHeight + 8, width: 22, height: 22)
         }
+    }
+
+    func displayLayerForLiveStream() -> AVSampleBufferDisplayLayer? {
+        liveStreamView.displayLayer
+    }
+
+    func showLiveStream() {
+        liveStreamView.isHidden = false
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            liveStreamView.animator().alphaValue = 1.0
+        }
+    }
+
+    func hideLiveStream() {
+        liveStreamView.alphaValue = 0
+        liveStreamView.isHidden = true
+        liveStreamView.displayLayer?.flushAndRemoveImage()
     }
 
     @objc private func quitPressed() { onQuit?(windowID) }

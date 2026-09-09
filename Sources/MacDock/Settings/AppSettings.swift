@@ -41,6 +41,8 @@ final class AppSettings: ObservableObject {
         static let showCloseButton = "showCloseButton"
         static let showChromeProfile = "showChromeProfile"
         static let includeMinimizedWindows = "includeMinimizedWindows"
+        static let enableLiveStreamPreview = "enableLiveStreamPreview"
+        static let liveStreamFPS = "liveStreamFPS"
     }
 
     // MARK: - Published Properties
@@ -101,6 +103,14 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(includeMinimizedWindows, forKey: Keys.includeMinimizedWindows) }
     }
 
+    @Published var enableLiveStreamPreview: Bool {
+        didSet { defaults.set(enableLiveStreamPreview, forKey: Keys.enableLiveStreamPreview) }
+    }
+
+    @Published var liveStreamFPS: Int {
+        didSet { defaults.set(liveStreamFPS, forKey: Keys.liveStreamFPS) }
+    }
+
     // MARK: - Launch at Login (SMAppService)
 
     var launchAtLogin: Bool {
@@ -151,6 +161,8 @@ final class AppSettings: ObservableObject {
             Keys.showCloseButton: true,
             Keys.showChromeProfile: true,
             Keys.includeMinimizedWindows: true,
+            Keys.enableLiveStreamPreview: true,
+            Keys.liveStreamFPS: 30,
         ])
 
         self.showMenuBarIcon = userDefaults.bool(forKey: Keys.showMenuBarIcon)
@@ -168,6 +180,9 @@ final class AppSettings: ObservableObject {
         self.showCloseButton = userDefaults.bool(forKey: Keys.showCloseButton)
         self.showChromeProfile = userDefaults.bool(forKey: Keys.showChromeProfile)
         self.includeMinimizedWindows = userDefaults.bool(forKey: Keys.includeMinimizedWindows)
+        self.enableLiveStreamPreview = userDefaults.bool(forKey: Keys.enableLiveStreamPreview)
+        let fps = userDefaults.integer(forKey: Keys.liveStreamFPS)
+        self.liveStreamFPS = (fps > 0) ? fps : 30
     }
 
     // MARK: - Exclusion Helpers
@@ -202,5 +217,7 @@ final class AppSettings: ObservableObject {
         showCloseButton = true
         showChromeProfile = true
         includeMinimizedWindows = true
+        enableLiveStreamPreview = true
+        liveStreamFPS = 30
     }
 }

@@ -328,7 +328,21 @@ struct TriggerSettingsView: View {
                     .disabled(!settings.enableFullPreview)
                     .padding(.leading, 20)
 
-                Text("大屏预览会在屏幕中央高清显示当前窗口。如果觉得全屏预览遮挡视线，可开启 Option 快捷键限定或直接关闭。")
+                Toggle("启用实时动态画面流 (GPU 硬件加速)", isOn: $settings.enableLiveStreamPreview)
+                    .disabled(!settings.enableFullPreview)
+                    .padding(.leading, 20)
+
+                if settings.enableFullPreview && settings.enableLiveStreamPreview {
+                    Picker("实时流目标帧率：", selection: $settings.liveStreamFPS) {
+                        Text("15 FPS (极低功耗)").tag(15)
+                        Text("30 FPS (平衡流畅，推荐)").tag(30)
+                        Text("60 FPS (极致顺滑)").tag(60)
+                    }
+                    .pickerStyle(.menu)
+                    .padding(.leading, 20)
+                }
+
+                Text("大屏预览会在屏幕中央显示当前窗口。开启实时动态画面流后，大屏预览将像画中画一样实时播放正在运行的窗口视频或动态。")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

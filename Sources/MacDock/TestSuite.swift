@@ -166,6 +166,8 @@ enum TestSuite {
             } else {
                 check(false, "card body returns .activate action")
             }
+
+            check(card.displayLayerForLiveStream() != nil, "card provides AVSampleBufferDisplayLayer for live streaming")
         }
 
         check(
@@ -233,6 +235,8 @@ enum TestSuite {
             check(!settings.closeLastWindowQuitsApp, "default closeLastWindowQuitsApp is false")
             check(settings.showMenuBarIcon, "default showMenuBarIcon is true")
             check(settings.enableFullPreview, "default enableFullPreview is true")
+            check(settings.enableLiveStreamPreview, "default enableLiveStreamPreview is true")
+            check(settings.liveStreamFPS == 30, "default liveStreamFPS is 30")
             check(settings.hoverDelay > 0.05, "default hoverDelay is positive")
             check(settings.middleClickAction == .closeWindow, "default middleClickAction is close")
 
@@ -246,11 +250,22 @@ enum TestSuite {
             // Reset test
             settings.hoverDelay = 0.75
             settings.showWindowTitle = false
+            settings.enableLiveStreamPreview = false
+            settings.liveStreamFPS = 60
             settings.resetToDefaults()
             check(settings.hoverDelay == 0.20, "reset restores hoverDelay")
             check(settings.showWindowTitle == true, "reset restores showWindowTitle")
+            check(settings.enableLiveStreamPreview == true, "reset restores enableLiveStreamPreview")
+            check(settings.liveStreamFPS == 30, "reset restores liveStreamFPS")
 
             testDefaults.removePersistentDomain(forName: suiteName)
+        }
+
+        // LiveStreamManager test
+        do {
+            check(LiveStreamManager.shared.currentWindowID == nil, "initial LiveStreamManager has no active stream")
+            LiveStreamManager.shared.stopCurrentStream()
+            check(LiveStreamManager.shared.currentWindowID == nil, "stopCurrentStream is safe when idle")
         }
 
         // Screen recording permission state (informational)

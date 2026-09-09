@@ -411,6 +411,10 @@ final class PreviewController {
         panel.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
         panel.orderFrontRegardless()
         smallPanel?.orderFrontRegardless()
+
+        if AppSettings.shared.enableLiveStreamPreview, window.isOnScreen {
+            panel.startLiveStream(for: window, frameRate: AppSettings.shared.liveStreamFPS)
+        }
     }
 
     private func updateFullPanelSelection() {
@@ -421,6 +425,9 @@ final class PreviewController {
             return
         }
         fullPanel?.setWindows([selected], images: images, appName: currentAppName, appIcon: currentAppIcon)
+        if AppSettings.shared.enableLiveStreamPreview, selected.isOnScreen {
+            fullPanel?.startLiveStream(for: selected, frameRate: AppSettings.shared.liveStreamFPS)
+        }
     }
 
     // MARK: - Refresh loop
