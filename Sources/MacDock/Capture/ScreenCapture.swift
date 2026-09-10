@@ -109,6 +109,8 @@ enum ScreenCapture {
             let scale = max(0.5, boundedScale)
             configuration.width = max(1, Int(frame.width * scale))
             configuration.height = max(1, Int(frame.height * scale))
+            configuration.sourceRect = .zero
+            configuration.scalesToFit = true
             configuration.showsCursor = false
             configuration.capturesAudio = false
             SCScreenshotManager.captureImage(

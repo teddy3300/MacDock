@@ -93,6 +93,72 @@ final class WindowCardView: NSView {
         layoutCard(cardSize: cardSize, closeSize: 16)
     }
 
+    static func adaptiveFullPreviewSize(for window: WindowInfo, screenSize: NSSize) -> (card: NSSize, image: NSSize) {
+        let w = window.bounds.width
+        let h = window.bounds.height
+        let aspect: CGFloat
+        if w <= 2 || h <= 2 {
+            aspect = 16.0 / 9.0
+        } else {
+            aspect = max(w / max(h, 1), 0.2)
+        }
+
+        // Screen boundaries: strictly bounded to at most 75% of screen
+        let maxAllowedWidth = max(400, screenSize.width * 0.75)
+        let maxAllowedHeight = max(300, (screenSize.height - 100) * 0.75)
+
+        var targetWidth: CGFloat
+        var targetHeight: CGFloat
+
+        // For small utility windows / dialogs (e.g. <= 640x500), preview at 1:1 scale
+        if w > 10 && h > 10 && w <= 640 && h <= 500 {
+            targetWidth = w
+            targetHeight = h
+        } else if w > 10 && h > 10 {
+            // Larger windows: scale down to 0.75x
+            targetWidth = w * 0.75
+            targetHeight = h * 0.75
+        } else {
+            targetWidth = min(960, maxAllowedWidth)
+            targetHeight = targetWidth / aspect
+        }
+
+        // Clamp to maximum allowed boundaries while preserving exact aspect ratio
+        if targetWidth > maxAllowedWidth {
+            targetWidth = maxAllowedWidth
+            targetHeight = targetWidth / aspect
+        }
+        if targetHeight > maxAllowedHeight {
+            targetHeight = maxAllowedHeight
+            targetWidth = targetHeight * aspect
+        }
+
+        // Ensure minimum comfortable preview size
+        let minWidth: CGFloat = 360
+        let minHeight: CGFloat = 220
+        if targetWidth < minWidth {
+            targetWidth = minWidth
+            targetHeight = targetWidth / aspect
+            if targetHeight > maxAllowedHeight {
+                targetHeight = maxAllowedHeight
+                targetWidth = targetHeight * aspect
+            }
+        }
+        if targetHeight < minHeight {
+            targetHeight = minHeight
+            targetWidth = targetHeight * aspect
+            if targetWidth > maxAllowedWidth {
+                targetWidth = maxAllowedWidth
+                targetHeight = targetWidth / aspect
+            }
+        }
+
+        let finalWidth = floor(targetWidth)
+        let finalHeight = floor(targetHeight)
+        let size = NSSize(width: finalWidth, height: finalHeight)
+        return (size, size)
+    }
+
     static func fittedSize(for window: WindowInfo, maxSize: NSSize, footerHeight: CGFloat = 34) -> (card: NSSize, image: NSSize) {
         let aspect: CGFloat
         if window.bounds.width <= 2 || window.bounds.height <= 2 {
@@ -185,7 +251,7 @@ final class WindowCardView: NSView {
                             showsCloseButton: showsCloseButton,
                             showsTitle: showsTitle,
                             closeSize: closeSize)
-        } else {
+        } else if footerHeight > 0 {
             buildSimpleFooter(displayTitle: displayTitle ?? window.title,
                               showsCloseButton: showsCloseButton,
                               closeSize: closeSize)
@@ -391,6 +457,16 @@ final class WindowCardView: NSView {
 
             refreshButton.frame = NSRect(x: cardSize.width - 28, y: 8, width: 20, height: 20)
             statusLabel.frame = NSRect(x: 8, y: thumbHeight / 2 - 12, width: cardSize.width - 16, height: 24)
+        } else if footerHeight == 0 {
+            // Immersive full preview mode: image fills the entire card
+            imageView.frame = NSRect(origin: .zero, size: cardSize)
+            liveStreamView.frame = imageView.frame
+            minimizedBadge.frame = NSRect(x: cardSize.width - 66, y: cardSize.height - 26, width: 58, height: 18)
+            titleLabel.frame = .zero
+            titleLabel.isHidden = true
+            closeButton.isHidden = true
+            refreshButton.isHidden = true
+            statusLabel.frame = NSRect(x: 8, y: cardSize.height / 2 - 12, width: cardSize.width - 16, height: 24)
         } else {
             imageView.frame = NSRect(x: 0, y: footerHeight, width: cardSize.width, height: thumbHeight)
             liveStreamView.frame = imageView.frame
@@ -485,7 +561,7 @@ final class WindowCardView: NSView {
     func setImage(_ image: CGImage?) {
         if let image {
             imageView.image = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
-            titleLabel.textColor = titleInHeader ? .labelColor : adaptiveTextColor(for: image)
+            titleLabel.textColor = titleInHeader ? .labelColor : (footerHeight == 0 ? .labelColor : adaptiveTextColor(for: image))
             statusLabel.isHidden = true
             refreshButton.isHidden = true
         } else {

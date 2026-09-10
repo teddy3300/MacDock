@@ -414,11 +414,13 @@ final class PreviewController {
               let window = windows.first(where: { $0.id == id }) else { return }
         panel.setWindows([window], images: images, appName: currentAppName, appIcon: currentAppIcon)
         let size = panel.desiredSize()
-        let screen = NSScreen.main?.frame ?? .zero
-        let w = min(size.width, screen.width - 20)
-        let h = min(size.height, screen.height - 60)
-        let x = screen.midX - w / 2
-        let y = max(screen.minY + 60, screen.midY - h / 2)
+        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
+            ?? NSScreen.main
+        let visibleFrame = screen?.visibleFrame ?? screen?.frame ?? .zero
+        let w = size.width
+        let h = size.height
+        let x = visibleFrame.midX - w / 2
+        let y = visibleFrame.midY - h / 2
         let targetFrame = NSRect(x: x, y: y, width: w, height: h)
 
         if panel.isVisible && panel.frame != targetFrame {
@@ -452,6 +454,25 @@ final class PreviewController {
             return
         }
         fullPanel?.setWindows([selected], images: images, appName: currentAppName, appIcon: currentAppIcon)
+        if let panel = fullPanel, panel.isVisible {
+            let size = panel.desiredSize()
+            let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
+                ?? NSScreen.main
+            let visibleFrame = screen?.visibleFrame ?? screen?.frame ?? .zero
+            let targetFrame = NSRect(
+                x: visibleFrame.midX - size.width / 2,
+                y: visibleFrame.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            )
+            if panel.frame != targetFrame {
+                NSAnimationContext.runAnimationGroup { ctx in
+                    ctx.duration = 0.12
+                    ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    panel.animator().setFrame(targetFrame, display: true)
+                }
+            }
+        }
         liveStreamDebounceTimer?.invalidate()
         if AppSettings.shared.enableLiveStreamPreview, selected.isOnScreen {
             liveStreamDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.06, repeats: false) { [weak self] _ in

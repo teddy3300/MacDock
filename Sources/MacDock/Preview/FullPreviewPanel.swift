@@ -97,68 +97,86 @@ final class FullPreviewPanel: NSPanel {
             let title = first.title.isEmpty ? appName : first.title
             let status = first.isOnScreen ? "" : " (已最小化)"
             headerLabel.stringValue = "\(appName) · \(title)\(status)"
+            headerLabel.toolTip = headerLabel.stringValue
         } else {
             headerLabel.stringValue = appName + " · \(windows.count) 个窗口"
+            headerLabel.toolTip = headerLabel.stringValue
         }
         let visible = Array(windows.prefix(Self.maxCards))
-        let count = max(visible.count, 1)
-        let screenWidth = NSScreen.main?.frame.width ?? 1440
-        let screenHeight = NSScreen.main?.frame.height ?? 900
-        let availableWidth = min(Self.maxPanelWidth, screenWidth - 30)
-        let maxImageHeight = min(Self.maxImageHeight, screenHeight - 100)
-        let availableCardWidth = (
-            availableWidth - Self.padding * 2 - CGFloat(count - 1) * Self.spacing
-        ) / CGFloat(count)
-        let shouldExpand = visible.count == 1 && visible.first.map {
-            Self.usesExpandedLayout(
-                windowBounds: $0.bounds,
-                screenSize: NSSize(width: screenWidth, height: screenHeight)
-            )
-        } == true
-        let maximumCardWidth: CGFloat = shouldExpand ? 2000 : 1450
-        let cardWidth = min(maximumCardWidth, availableCardWidth)
-        var totalWidth = Self.padding * 2 + CGFloat(max(visible.count - 1, 0)) * Self.spacing
+        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
+            ?? NSScreen.main
+        let screenSize = screen?.visibleFrame.size ?? screen?.frame.size ?? NSSize(width: 1440, height: 900)
+
+        var totalWidth: CGFloat = 0
         var maxHeight: CGFloat = 0
 
-        // In-place card reuse when displaying a single window (common case during hover)
-        if visible.count == 1, let w = visible.first, let existingCard = cardsStack.arrangedSubviews.first as? WindowCardView {
-            let fitted = WindowCardView.fittedSize(for: w,
-                                                   maxSize: NSSize(width: cardWidth, height: maxImageHeight))
-            existingCard.update(
-                window: w,
-                cardSize: fitted.card,
-                thumbHeight: fitted.image.height,
-                displayTitle: w.title.isEmpty ? appName : w.title,
-                image: images[w.id],
-                fallbackImage: appIcon
-            )
-            cards.removeAll()
-            cards[w.id] = existingCard
-            totalWidth += fitted.card.width
-            maxHeight = max(maxHeight, fitted.card.height)
+        if visible.count == 1, let w = visible.first {
+            let fitted = WindowCardView.adaptiveFullPreviewSize(for: w, screenSize: screenSize)
+            if let existingCard = cardsStack.arrangedSubviews.first as? WindowCardView {
+                existingCard.update(
+                    window: w,
+                    cardSize: fitted.card,
+                    thumbHeight: fitted.image.height,
+                    displayTitle: nil,
+                    image: images[w.id],
+                    fallbackImage: appIcon
+                )
+                cards.removeAll()
+                cards[w.id] = existingCard
+            } else {
+                for v in cardsStack.arrangedSubviews {
+                    cardsStack.removeArrangedSubview(v)
+                    v.removeFromSuperview()
+                }
+                cards.removeAll()
+                let card = WindowCardView(
+                    window: w,
+                    cardSize: fitted.card,
+                    thumbHeight: fitted.image.height,
+                    footerHeight: 0,
+                    showsCloseButton: false,
+                    showsTitle: false,
+                    fallbackImage: appIcon
+                )
+                card.onClick = { [weak self] id in self?.onCardClick?(id) }
+                card.setImage(images[w.id])
+                cards[w.id] = card
+                cardsStack.addArrangedSubview(card)
+            }
+            totalWidth = fitted.card.width + Self.padding * 2
+            maxHeight = fitted.card.height
         } else {
             for v in cardsStack.arrangedSubviews {
                 cardsStack.removeArrangedSubview(v)
                 v.removeFromSuperview()
             }
             cards.removeAll()
+            let count = max(visible.count, 1)
+            let availableWidth = min(Self.maxPanelWidth, screenSize.width - 40)
+            let cardWidth = (availableWidth - Self.padding * 2 - CGFloat(count - 1) * Self.spacing) / CGFloat(count)
+            let maxImageHeight = min(Self.maxImageHeight, screenSize.height - 120)
+            var cardsWidth: CGFloat = 0
             for w in visible {
                 let fitted = WindowCardView.fittedSize(for: w,
-                                                       maxSize: NSSize(width: cardWidth, height: maxImageHeight))
+                                                       maxSize: NSSize(width: cardWidth, height: maxImageHeight),
+                                                       footerHeight: 0)
                 let card = WindowCardView(window: w, cardSize: fitted.card, thumbHeight: fitted.image.height,
+                                          footerHeight: 0,
                                           showsCloseButton: false,
+                                          showsTitle: false,
                                           fallbackImage: appIcon)
                 card.onClick = { [weak self] id in self?.onCardClick?(id) }
                 card.setImage(images[w.id])
                 cards[w.id] = card
                 cardsStack.addArrangedSubview(card)
-                totalWidth += fitted.card.width
+                cardsWidth += fitted.card.width
                 maxHeight = max(maxHeight, fitted.card.height)
             }
+            totalWidth = cardsWidth + Self.padding * 2 + CGFloat(max(visible.count - 1, 0)) * Self.spacing
         }
 
-        layoutSize = NSSize(width: visible.isEmpty ? 1020 : totalWidth,
-                            height: visible.isEmpty ? 750 : 20 + 6 + maxHeight + Self.padding * 2 + 8)
+        layoutSize = NSSize(width: visible.isEmpty ? 600 : totalWidth,
+                            height: visible.isEmpty ? 400 : 8 + 20 + 6 + maxHeight + Self.padding)
     }
 
     func startLiveStream(for window: WindowInfo, frameRate: Int) {

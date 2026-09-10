@@ -108,6 +108,21 @@ enum TestSuite {
             "tall utility window keeps compact preview"
         )
 
+        let landscapeWin = WindowInfo(id: 1, ownerName: "Chrome", ownerPID: 100, title: "Web",
+                                      bounds: CGRect(x: 0, y: 0, width: 1920, height: 1080), layer: 0, isOnScreen: true)
+        let landscapeFit = WindowCardView.adaptiveFullPreviewSize(for: landscapeWin, screenSize: NSSize(width: 2560, height: 1440))
+        check(landscapeFit.card.width == 1440 && landscapeFit.card.height == 810, "landscape window scales by 0.75x preserving aspect")
+
+        let tallWin = WindowInfo(id: 2, ownerName: "WeChat", ownerPID: 101, title: "Chat",
+                                 bounds: CGRect(x: 0, y: 0, width: 600, height: 1200), layer: 0, isOnScreen: true)
+        let tallFit = WindowCardView.adaptiveFullPreviewSize(for: tallWin, screenSize: NSSize(width: 2560, height: 1440))
+        check(abs(tallFit.card.width / tallFit.card.height - 0.5) < 0.02, "tall window strictly maintains aspect ratio")
+
+        let smallWin = WindowInfo(id: 3, ownerName: "Finder", ownerPID: 102, title: "Dialog",
+                                  bounds: CGRect(x: 0, y: 0, width: 480, height: 320), layer: 0, isOnScreen: true)
+        let smallFit = WindowCardView.adaptiveFullPreviewSize(for: smallWin, screenSize: NSSize(width: 2560, height: 1440))
+        check(smallFit.card.width == 480 && smallFit.card.height == 320, "small window displays at 1:1 scale")
+
         check(SmallPreviewPanel.maxCards == 20, "small preview supports 20 windows")
         check(
             SmallPreviewPanel.layoutWidth(windowCount: 1, screenWidth: 2560) == 300,

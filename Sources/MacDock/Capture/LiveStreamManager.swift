@@ -59,6 +59,7 @@ final class LiveStreamManager: NSObject, SCStreamOutput, SCStreamDelegate {
             configuration.width = max(1, Int(frame.width * scale))
             configuration.height = max(1, Int(frame.height * scale))
             configuration.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(max(1, frameRate)))
+            configuration.sourceRect = .zero
             configuration.showsCursor = false
             configuration.capturesAudio = false
             configuration.scalesToFit = true
