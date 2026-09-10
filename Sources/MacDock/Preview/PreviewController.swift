@@ -120,6 +120,7 @@ final class PreviewController {
         }
         if fullPanel == nil {
             let panel = FullPreviewPanel(onEntered: nil, onExited: nil)
+            panel.onCardClick = { [weak self] id in self?.activateWindow(id) }
             fullPanel = panel
         }
 

@@ -64,7 +64,8 @@ final class WindowCardView: NSView {
     private let refreshButton = NSButton()
 
     private var thumbHeight: CGFloat
-    private let footerHeight: CGFloat
+    private var footerHeight: CGFloat
+    private var currentCardSize: NSSize = .zero
     private let titleFontSize: CGFloat
     private let titleInHeader: Bool
     private let allowsRefresh: Bool
@@ -76,12 +77,15 @@ final class WindowCardView: NSView {
         window: WindowInfo,
         cardSize: NSSize,
         thumbHeight: CGFloat,
+        footerHeight: CGFloat? = nil,
         displayTitle: String? = nil,
         image: CGImage?,
         fallbackImage: NSImage? = nil
     ) {
         self.windowID = window.id
         self.thumbHeight = thumbHeight
+        if let footerHeight { self.footerHeight = footerHeight }
+        self.currentCardSize = cardSize
         if let fallbackImage { self.fallbackImage = fallbackImage }
         frame = NSRect(origin: frame.origin, size: cardSize)
         let title = displayTitle ?? window.title
@@ -91,6 +95,7 @@ final class WindowCardView: NSView {
         hideLiveStream()
         setImage(image)
         layoutCard(cardSize: cardSize, closeSize: 16)
+        invalidateIntrinsicContentSize()
     }
 
     static func adaptiveFullPreviewSize(for window: WindowInfo, screenSize: NSSize) -> (card: NSSize, image: NSSize) {
@@ -103,23 +108,23 @@ final class WindowCardView: NSView {
             aspect = max(w / max(h, 1), 0.2)
         }
 
-        // Screen boundaries: strictly bounded to at most 75% of screen
-        let maxAllowedWidth = max(400, screenSize.width * 0.75)
-        let maxAllowedHeight = max(300, (screenSize.height - 100) * 0.75)
+        // Screen boundaries: strictly bounded to at most 55% of screen, max 960x640
+        let maxAllowedWidth = min(960, max(360, screenSize.width * 0.55))
+        let maxAllowedHeight = min(640, max(240, (screenSize.height - 100) * 0.55))
 
         var targetWidth: CGFloat
         var targetHeight: CGFloat
 
-        // For small utility windows / dialogs (e.g. <= 640x500), preview at 1:1 scale
-        if w > 10 && h > 10 && w <= 640 && h <= 500 {
+        // For small utility windows / dialogs (e.g. <= 480x360), preview at 1:1 scale
+        if w > 10 && h > 10 && w <= 480 && h <= 360 {
             targetWidth = w
             targetHeight = h
         } else if w > 10 && h > 10 {
-            // Larger windows: scale down to 0.75x
-            targetWidth = w * 0.75
-            targetHeight = h * 0.75
+            // Standard/larger windows: scale down to 0.55x (comfortable, balanced preview size)
+            targetWidth = w * 0.55
+            targetHeight = h * 0.55
         } else {
-            targetWidth = min(960, maxAllowedWidth)
+            targetWidth = min(720, maxAllowedWidth)
             targetHeight = targetWidth / aspect
         }
 
@@ -191,11 +196,17 @@ final class WindowCardView: NSView {
         self.titleInHeader = titleInHeader
         self.allowsRefresh = allowsRefresh
         self.fallbackImage = fallbackImage
+        self.currentCardSize = cardSize
         super.init(frame: NSRect(origin: .zero, size: cardSize))
 
         wantsLayer = true
-        setContentHuggingPriority(.required, for: .horizontal)
-        setContentHuggingPriority(.required, for: .vertical)
+        if footerHeight == 0 {
+            setContentHuggingPriority(.defaultLow, for: .horizontal)
+            setContentHuggingPriority(.defaultLow, for: .vertical)
+        } else {
+            setContentHuggingPriority(.required, for: .horizontal)
+            setContentHuggingPriority(.required, for: .vertical)
+        }
         setContentCompressionResistancePriority(.required, for: .horizontal)
         setContentCompressionResistancePriority(.required, for: .vertical)
 
@@ -375,7 +386,14 @@ final class WindowCardView: NSView {
         }
     }
 
-    override var intrinsicContentSize: NSSize { bounds.size }
+    override var intrinsicContentSize: NSSize {
+        currentCardSize.width > 0 ? currentCardSize : bounds.size
+    }
+
+    override func layout() {
+        super.layout()
+        layoutCard(cardSize: bounds.size, closeSize: 16)
+    }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func updateTrackingAreas() {

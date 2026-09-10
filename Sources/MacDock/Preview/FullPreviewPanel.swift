@@ -14,10 +14,12 @@ final class FullPreviewPanel: NSPanel {
 
     private let root = HoverTrackingView(frame: .zero)
     private let headerLabel = NSTextField(labelWithString: "")
+    private let containerView = NSView()
     private let cardsStack = NSStackView()
     private var cards: [CGWindowID: WindowCardView] = [:]
+    private var singleCard: WindowCardView?
     private var effect: NSVisualEffectView!
-    private var layoutSize = NSSize(width: 1020, height: 750)
+    private var layoutSize = NSSize(width: 960, height: 590)
 
     static func usesExpandedLayout(windowBounds: CGRect, screenSize: NSSize) -> Bool {
         guard windowBounds.width > 0, windowBounds.height > 0,
@@ -66,26 +68,30 @@ final class FullPreviewPanel: NSPanel {
         headerLabel.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(headerLabel)
 
+        containerView.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(containerView)
+
         cardsStack.orientation = .horizontal
         cardsStack.spacing = Self.spacing
-        cardsStack.alignment = .top
-        cardsStack.distribution = .fill
+        cardsStack.alignment = .centerY
+        cardsStack.distribution = .fillEqually
         cardsStack.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(cardsStack)
 
         NSLayoutConstraint.activate([
             effect.topAnchor.constraint(equalTo: root.topAnchor),
             effect.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             effect.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             effect.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+
             headerLabel.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
             headerLabel.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: Self.padding),
             headerLabel.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -Self.padding),
             headerLabel.heightAnchor.constraint(equalToConstant: 20),
-            cardsStack.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 6),
-            cardsStack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: Self.padding),
-            cardsStack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -Self.padding),
-            cardsStack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -Self.padding),
+
+            containerView.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 6),
+            containerView.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: Self.padding),
+            containerView.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -Self.padding),
+            containerView.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -Self.padding),
         ])
         contentView = root
     }
@@ -112,20 +118,20 @@ final class FullPreviewPanel: NSPanel {
 
         if visible.count == 1, let w = visible.first {
             let fitted = WindowCardView.adaptiveFullPreviewSize(for: w, screenSize: screenSize)
-            if let existingCard = cardsStack.arrangedSubviews.first as? WindowCardView {
-                existingCard.update(
+            if let card = singleCard, containerView.subviews.contains(card) {
+                card.update(
                     window: w,
                     cardSize: fitted.card,
                     thumbHeight: fitted.image.height,
+                    footerHeight: 0,
                     displayTitle: nil,
                     image: images[w.id],
                     fallbackImage: appIcon
                 )
                 cards.removeAll()
-                cards[w.id] = existingCard
+                cards[w.id] = card
             } else {
-                for v in cardsStack.arrangedSubviews {
-                    cardsStack.removeArrangedSubview(v)
+                for v in containerView.subviews {
                     v.removeFromSuperview()
                 }
                 cards.removeAll()
@@ -138,14 +144,26 @@ final class FullPreviewPanel: NSPanel {
                     showsTitle: false,
                     fallbackImage: appIcon
                 )
+                card.translatesAutoresizingMaskIntoConstraints = false
                 card.onClick = { [weak self] id in self?.onCardClick?(id) }
                 card.setImage(images[w.id])
+                singleCard = card
                 cards[w.id] = card
-                cardsStack.addArrangedSubview(card)
+                containerView.addSubview(card)
+                NSLayoutConstraint.activate([
+                    card.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+                    card.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+                    card.topAnchor.constraint(equalTo: containerView.topAnchor),
+                    card.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+                ])
             }
             totalWidth = fitted.card.width + Self.padding * 2
             maxHeight = fitted.card.height
         } else {
+            singleCard = nil
+            for v in containerView.subviews {
+                v.removeFromSuperview()
+            }
             for v in cardsStack.arrangedSubviews {
                 cardsStack.removeArrangedSubview(v)
                 v.removeFromSuperview()
@@ -172,6 +190,13 @@ final class FullPreviewPanel: NSPanel {
                 cardsWidth += fitted.card.width
                 maxHeight = max(maxHeight, fitted.card.height)
             }
+            containerView.addSubview(cardsStack)
+            NSLayoutConstraint.activate([
+                cardsStack.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+                cardsStack.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+                cardsStack.topAnchor.constraint(equalTo: containerView.topAnchor),
+                cardsStack.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+            ])
             totalWidth = cardsWidth + Self.padding * 2 + CGFloat(max(visible.count - 1, 0)) * Self.spacing
         }
 
@@ -195,6 +220,7 @@ final class FullPreviewPanel: NSPanel {
 
     func stopLiveStream() {
         LiveStreamManager.shared.stopCurrentStream()
+        singleCard?.hideLiveStream()
         for card in cards.values {
             card.hideLiveStream()
         }

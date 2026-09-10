@@ -111,7 +111,7 @@ enum TestSuite {
         let landscapeWin = WindowInfo(id: 1, ownerName: "Chrome", ownerPID: 100, title: "Web",
                                       bounds: CGRect(x: 0, y: 0, width: 1920, height: 1080), layer: 0, isOnScreen: true)
         let landscapeFit = WindowCardView.adaptiveFullPreviewSize(for: landscapeWin, screenSize: NSSize(width: 2560, height: 1440))
-        check(landscapeFit.card.width == 1440 && landscapeFit.card.height == 810, "landscape window scales by 0.75x preserving aspect")
+        check(landscapeFit.card.width == 960 && landscapeFit.card.height == 540, "landscape window scales comfortably preserving aspect")
 
         let tallWin = WindowInfo(id: 2, ownerName: "WeChat", ownerPID: 101, title: "Chat",
                                  bounds: CGRect(x: 0, y: 0, width: 600, height: 1200), layer: 0, isOnScreen: true)
