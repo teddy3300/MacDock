@@ -82,7 +82,7 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Text("MacDock 1.1.4")
+                Text("MacDock 1.1.5")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -399,8 +399,9 @@ struct AppearanceSettingsView: View {
                 Picker("预览缩放：", selection: $settings.fullPreviewScale) {
                     Text("精致 (50%)").tag(0.50)
                     Text("标准 (65%)").tag(0.65)
-                    Text("宽大 (75%)").tag(0.75)
-                    Text("巨幕 (85%)").tag(0.85)
+                    Text("充盈 (75%)").tag(0.75)
+                    Text("宽大 (85%)").tag(0.85)
+                    Text("全屏 (100%)").tag(1.00)
                 }
                 .pickerStyle(.segmented)
 

@@ -112,10 +112,12 @@ final class WindowCardView: NSView {
             aspect = max(w / max(h, 1), 0.2)
         }
 
-        let clampedScale = max(0.3, min(scale, 0.95))
-        // Screen boundaries: strictly bounded to user scale proportion of screen
-        let maxAllowedWidth = max(360, screenSize.width * clampedScale)
-        let maxAllowedHeight = max(240, (screenSize.height - 100) * clampedScale)
+        let clampedScale = max(0.3, min(scale, 1.0))
+        // Screen boundaries: strictly bounded to available screen area taking into account margins and panel overhead
+        let availableScreenWidth = max(360, screenSize.width - 72)
+        let availableScreenHeight = max(240, screenSize.height - 90)
+        let maxAllowedWidth = max(360, availableScreenWidth * clampedScale)
+        let maxAllowedHeight = max(240, availableScreenHeight * clampedScale)
 
         var targetWidth: CGFloat
         var targetHeight: CGFloat
@@ -129,7 +131,7 @@ final class WindowCardView: NSView {
             targetWidth = w * clampedScale
             targetHeight = h * clampedScale
         } else {
-            targetWidth = min(800, maxAllowedWidth)
+            targetWidth = min(availableScreenWidth, maxAllowedWidth)
             targetHeight = targetWidth / aspect
         }
 

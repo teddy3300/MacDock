@@ -116,6 +116,9 @@ enum TestSuite {
         let landscapeStandard = WindowCardView.adaptiveFullPreviewSize(for: landscapeWin, screenSize: NSSize(width: 2560, height: 1440), scale: 0.65)
         check(landscapeStandard.card.width == 1248 && landscapeStandard.card.height == 702, "landscape window at 0.65x is 1248x702")
 
+        let landscapeFull = WindowCardView.adaptiveFullPreviewSize(for: landscapeWin, screenSize: NSSize(width: 2560, height: 1440), scale: 1.00)
+        check(landscapeFull.card.width == 1920 && landscapeFull.card.height == 1080, "landscape window at 1.00x is 1920x1080 (1:1 physical size)")
+
         let tallWin = WindowInfo(id: 2, ownerName: "WeChat", ownerPID: 101, title: "Chat",
                                  bounds: CGRect(x: 0, y: 0, width: 600, height: 1200), layer: 0, isOnScreen: true)
         let tallFit = WindowCardView.adaptiveFullPreviewSize(for: tallWin, screenSize: NSSize(width: 2560, height: 1440), scale: 0.65)
