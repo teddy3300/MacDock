@@ -15,9 +15,9 @@ final class LiveStreamView: NSView {
 
     override func makeBackingLayer() -> CALayer {
         let layer = AVSampleBufferDisplayLayer()
-        layer.videoGravity = .resizeAspect
+        layer.videoGravity = .resizeAspectFill
         layer.backgroundColor = NSColor.clear.cgColor
-        layer.cornerRadius = 8
+        layer.cornerRadius = 10
         layer.masksToBounds = true
         return layer
     }
@@ -88,6 +88,21 @@ final class WindowCardView: NSView {
         self.currentCardSize = cardSize
         if let fallbackImage { self.fallbackImage = fallbackImage }
         frame = NSRect(origin: frame.origin, size: cardSize)
+        if self.footerHeight == 0 {
+            layer?.cornerRadius = 10
+            layer?.borderWidth = 0.5
+            layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
+            layer?.backgroundColor = NSColor.clear.cgColor
+            imageView.imageScaling = .scaleAxesIndependently
+            imageView.layer?.cornerRadius = 10
+        } else {
+            layer?.cornerRadius = 10
+            layer?.borderWidth = 1
+            layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+            layer?.backgroundColor = NSColor(white: 0.25, alpha: 0.35).cgColor
+            imageView.imageScaling = .scaleProportionallyUpOrDown
+            imageView.layer?.cornerRadius = 8
+        }
         let title = displayTitle ?? window.title
         titleLabel.stringValue = title.isEmpty ? "窗口" : title
         titleLabel.toolTip = title
@@ -210,22 +225,27 @@ final class WindowCardView: NSView {
         if footerHeight == 0 {
             setContentHuggingPriority(.defaultLow, for: .horizontal)
             setContentHuggingPriority(.defaultLow, for: .vertical)
+            layer?.cornerRadius = 10
+            layer?.borderWidth = 0.5
+            layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
+            layer?.backgroundColor = NSColor.clear.cgColor
+            imageView.imageScaling = .scaleAxesIndependently
+            imageView.layer?.cornerRadius = 10
         } else {
             setContentHuggingPriority(.required, for: .horizontal)
             setContentHuggingPriority(.required, for: .vertical)
+            layer?.cornerRadius = 10
+            layer?.borderWidth = 1
+            layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+            layer?.backgroundColor = NSColor(white: 0.25, alpha: 0.35).cgColor
+            imageView.imageScaling = .scaleProportionallyUpOrDown
+            imageView.layer?.cornerRadius = 8
         }
         setContentCompressionResistancePriority(.required, for: .horizontal)
         setContentCompressionResistancePriority(.required, for: .vertical)
-
-        layer?.cornerRadius = 10
-        layer?.borderWidth = 1
-        layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
-        layer?.backgroundColor = NSColor(white: 0.25, alpha: 0.35).cgColor
         layer?.masksToBounds = true
 
-        imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 8
         imageView.layer?.masksToBounds = true
         imageView.layer?.backgroundColor = NSColor.clear.cgColor
         addSubview(imageView)

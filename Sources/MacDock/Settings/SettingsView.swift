@@ -82,7 +82,7 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Text("MacDock 1.1.5")
+                Text("MacDock 1.1.6")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

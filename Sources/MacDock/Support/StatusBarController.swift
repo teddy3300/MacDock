@@ -71,7 +71,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
 
         // 1. App Title & Version
-        let titleItem = NSMenuItem(title: "MacDock (v1.1.5)", action: nil, keyEquivalent: "")
+        let titleItem = NSMenuItem(title: "MacDock (v1.1.6)", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         menu.addItem(titleItem)
         statusTitleItem = titleItem
