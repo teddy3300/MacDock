@@ -98,7 +98,11 @@ final class WindowCardView: NSView {
         invalidateIntrinsicContentSize()
     }
 
-    static func adaptiveFullPreviewSize(for window: WindowInfo, screenSize: NSSize) -> (card: NSSize, image: NSSize) {
+    static func adaptiveFullPreviewSize(
+        for window: WindowInfo,
+        screenSize: NSSize,
+        scale: Double = AppSettings.shared.fullPreviewScale
+    ) -> (card: NSSize, image: NSSize) {
         let w = window.bounds.width
         let h = window.bounds.height
         let aspect: CGFloat
@@ -108,9 +112,10 @@ final class WindowCardView: NSView {
             aspect = max(w / max(h, 1), 0.2)
         }
 
-        // Screen boundaries: strictly bounded to at most 55% of screen, max 960x640
-        let maxAllowedWidth = min(960, max(360, screenSize.width * 0.55))
-        let maxAllowedHeight = min(640, max(240, (screenSize.height - 100) * 0.55))
+        let clampedScale = max(0.3, min(scale, 0.95))
+        // Screen boundaries: strictly bounded to user scale proportion of screen
+        let maxAllowedWidth = max(360, screenSize.width * clampedScale)
+        let maxAllowedHeight = max(240, (screenSize.height - 100) * clampedScale)
 
         var targetWidth: CGFloat
         var targetHeight: CGFloat
@@ -120,11 +125,11 @@ final class WindowCardView: NSView {
             targetWidth = w
             targetHeight = h
         } else if w > 10 && h > 10 {
-            // Standard/larger windows: scale down to 0.55x (comfortable, balanced preview size)
-            targetWidth = w * 0.55
-            targetHeight = h * 0.55
+            // Standard/larger windows: scale down according to selected scale
+            targetWidth = w * clampedScale
+            targetHeight = h * clampedScale
         } else {
-            targetWidth = min(720, maxAllowedWidth)
+            targetWidth = min(800, maxAllowedWidth)
             targetHeight = targetWidth / aspect
         }
 

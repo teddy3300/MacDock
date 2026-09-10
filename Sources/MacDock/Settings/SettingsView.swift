@@ -82,7 +82,7 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Text("MacDock 1.1.3")
+                Text("MacDock 1.1.4")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -391,7 +391,27 @@ struct AppearanceSettingsView: View {
 
             Divider()
 
-            // Section 2: Display Elements
+            // Section 2: Full Preview Size
+            VStack(alignment: .leading, spacing: 10) {
+                Text("二级大预览窗尺寸")
+                    .font(.headline)
+
+                Picker("预览缩放：", selection: $settings.fullPreviewScale) {
+                    Text("精致 (50%)").tag(0.50)
+                    Text("标准 (65%)").tag(0.65)
+                    Text("宽大 (75%)").tag(0.75)
+                    Text("巨幕 (85%)").tag(0.85)
+                }
+                .pickerStyle(.segmented)
+
+                Text("调整移入卡片时展开的二级大预览窗显示比例。始终严格保持目标窗口原始等比不畸变。")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Divider()
+
+            // Section 3: Display Elements
             VStack(alignment: .leading, spacing: 10) {
                 Text("卡片展示元素")
                     .font(.headline)

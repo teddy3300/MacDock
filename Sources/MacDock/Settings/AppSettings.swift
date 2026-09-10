@@ -43,6 +43,7 @@ final class AppSettings: ObservableObject {
         static let includeMinimizedWindows = "includeMinimizedWindows"
         static let enableLiveStreamPreview = "enableLiveStreamPreview"
         static let liveStreamFPS = "liveStreamFPS"
+        static let fullPreviewScale = "fullPreviewScale"
     }
 
     // MARK: - Published Properties
@@ -111,6 +112,10 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(liveStreamFPS, forKey: Keys.liveStreamFPS) }
     }
 
+    @Published var fullPreviewScale: Double {
+        didSet { defaults.set(fullPreviewScale, forKey: Keys.fullPreviewScale) }
+    }
+
     // MARK: - Launch at Login (SMAppService)
 
     var launchAtLogin: Bool {
@@ -163,6 +168,7 @@ final class AppSettings: ObservableObject {
             Keys.includeMinimizedWindows: true,
             Keys.enableLiveStreamPreview: true,
             Keys.liveStreamFPS: 30,
+            Keys.fullPreviewScale: 0.65,
         ])
 
         self.showMenuBarIcon = userDefaults.bool(forKey: Keys.showMenuBarIcon)
@@ -183,6 +189,8 @@ final class AppSettings: ObservableObject {
         self.enableLiveStreamPreview = userDefaults.bool(forKey: Keys.enableLiveStreamPreview)
         let fps = userDefaults.integer(forKey: Keys.liveStreamFPS)
         self.liveStreamFPS = (fps > 0) ? fps : 30
+        let scale = userDefaults.double(forKey: Keys.fullPreviewScale)
+        self.fullPreviewScale = (scale > 0) ? scale : 0.65
     }
 
     // MARK: - Exclusion Helpers
@@ -219,5 +227,6 @@ final class AppSettings: ObservableObject {
         includeMinimizedWindows = true
         enableLiveStreamPreview = true
         liveStreamFPS = 30
+        fullPreviewScale = 0.65
     }
 }

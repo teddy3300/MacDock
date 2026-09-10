@@ -110,17 +110,20 @@ enum TestSuite {
 
         let landscapeWin = WindowInfo(id: 1, ownerName: "Chrome", ownerPID: 100, title: "Web",
                                       bounds: CGRect(x: 0, y: 0, width: 1920, height: 1080), layer: 0, isOnScreen: true)
-        let landscapeFit = WindowCardView.adaptiveFullPreviewSize(for: landscapeWin, screenSize: NSSize(width: 2560, height: 1440))
-        check(landscapeFit.card.width == 960 && landscapeFit.card.height == 540, "landscape window scales comfortably preserving aspect")
+        let landscapeFit = WindowCardView.adaptiveFullPreviewSize(for: landscapeWin, screenSize: NSSize(width: 2560, height: 1440), scale: 0.50)
+        check(landscapeFit.card.width == 960 && landscapeFit.card.height == 540, "landscape window at 0.50x is 960x540")
+
+        let landscapeStandard = WindowCardView.adaptiveFullPreviewSize(for: landscapeWin, screenSize: NSSize(width: 2560, height: 1440), scale: 0.65)
+        check(landscapeStandard.card.width == 1248 && landscapeStandard.card.height == 702, "landscape window at 0.65x is 1248x702")
 
         let tallWin = WindowInfo(id: 2, ownerName: "WeChat", ownerPID: 101, title: "Chat",
                                  bounds: CGRect(x: 0, y: 0, width: 600, height: 1200), layer: 0, isOnScreen: true)
-        let tallFit = WindowCardView.adaptiveFullPreviewSize(for: tallWin, screenSize: NSSize(width: 2560, height: 1440))
+        let tallFit = WindowCardView.adaptiveFullPreviewSize(for: tallWin, screenSize: NSSize(width: 2560, height: 1440), scale: 0.65)
         check(abs(tallFit.card.width / tallFit.card.height - 0.5) < 0.02, "tall window strictly maintains aspect ratio")
 
         let smallWin = WindowInfo(id: 3, ownerName: "Finder", ownerPID: 102, title: "Dialog",
                                   bounds: CGRect(x: 0, y: 0, width: 480, height: 320), layer: 0, isOnScreen: true)
-        let smallFit = WindowCardView.adaptiveFullPreviewSize(for: smallWin, screenSize: NSSize(width: 2560, height: 1440))
+        let smallFit = WindowCardView.adaptiveFullPreviewSize(for: smallWin, screenSize: NSSize(width: 2560, height: 1440), scale: 0.65)
         check(smallFit.card.width == 480 && smallFit.card.height == 320, "small window displays at 1:1 scale")
 
         check(SmallPreviewPanel.maxCards == 20, "small preview supports 20 windows")
@@ -252,6 +255,7 @@ enum TestSuite {
             check(settings.enableFullPreview, "default enableFullPreview is true")
             check(settings.enableLiveStreamPreview, "default enableLiveStreamPreview is true")
             check(settings.liveStreamFPS == 30, "default liveStreamFPS is 30")
+            check(abs(settings.fullPreviewScale - 0.65) < 0.001, "default fullPreviewScale is 0.65")
             check(settings.hoverDelay > 0.05, "default hoverDelay is positive")
             check(settings.middleClickAction == .closeWindow, "default middleClickAction is close")
 
@@ -267,11 +271,13 @@ enum TestSuite {
             settings.showWindowTitle = false
             settings.enableLiveStreamPreview = false
             settings.liveStreamFPS = 60
+            settings.fullPreviewScale = 0.85
             settings.resetToDefaults()
             check(settings.hoverDelay == 0.20, "reset restores hoverDelay")
             check(settings.showWindowTitle == true, "reset restores showWindowTitle")
             check(settings.enableLiveStreamPreview == true, "reset restores enableLiveStreamPreview")
             check(settings.liveStreamFPS == 30, "reset restores liveStreamFPS")
+            check(abs(settings.fullPreviewScale - 0.65) < 0.001, "reset restores fullPreviewScale")
 
             testDefaults.removePersistentDomain(forName: suiteName)
         }

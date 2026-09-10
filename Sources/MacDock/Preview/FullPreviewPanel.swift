@@ -117,7 +117,11 @@ final class FullPreviewPanel: NSPanel {
         var maxHeight: CGFloat = 0
 
         if visible.count == 1, let w = visible.first {
-            let fitted = WindowCardView.adaptiveFullPreviewSize(for: w, screenSize: screenSize)
+            let fitted = WindowCardView.adaptiveFullPreviewSize(
+                for: w,
+                screenSize: screenSize,
+                scale: AppSettings.shared.fullPreviewScale
+            )
             if let card = singleCard, containerView.subviews.contains(card) {
                 card.update(
                     window: w,
